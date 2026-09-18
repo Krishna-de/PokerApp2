@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Bell,
   BellOff,
@@ -337,8 +337,9 @@ export default function App() {
     roomTitle: room?.title ?? 'Poker',
   });
 
+  // Buy-ins only close when the admin closes them. After the reminder level the admin gets a nudge.
   const lateRegPassed = phase === 'game' && lateRegIndex >= 0 && clockView.levelIndex > lateRegIndex;
-  const buyinsClosed = buyinsClosedFlag || lateRegPassed;
+  const buyinsClosed = buyinsClosedFlag;
 
   // Browsers need a tap before audio can play; re-arm after a reload when alerts were left on.
   useEffect(() => {
@@ -942,9 +943,9 @@ setAdminMessage(lastUndo.label.startsWith('Undo close buy-ins') ? 'Buy-ins reope
     await patchRoom({ settings: { ...room.settings, bounty: n } });
   }
 
-async function closeBuyins(auto = false) {
+async function closeBuyins() {
   if (!room || !isAdminUnlocked || !identity || buyinsClosedFlag) return;
-  const event = createEvent('buyins_closed', identity, auto ? { auto: true, level: levelName(lateRegIndex) } : undefined);
+  const event = createEvent('buyins_closed', identity);
 
   const snapshot: UndoState = {
     players: players.map((p) => ({ ...p })),
@@ -958,18 +959,8 @@ async function closeBuyins(auto = false) {
     events: [event, ...events],
   });
   setUndoStack((prev) => [...prev, snapshot].slice(-10));
-  setAdminMessage(auto ? 'Late registration is over — buy-ins closed.' : 'Buy-ins are now closed for this tournament.');
+  setAdminMessage('Buy-ins are now closed for this tournament.');
 }
-
-  // The admin device records the automatic close once the late-reg level is over.
-  const autoClosingRef = useRef(false);
-  useEffect(() => {
-    if (!lateRegPassed || buyinsClosedFlag || !isAdminUnlocked || autoClosingRef.current) return;
-    autoClosingRef.current = true;
-    void closeBuyins(true).finally(() => {
-      autoClosingRef.current = false;
-    });
-  });
 
 
   async function updatePayoutMode(mode: PayoutMode) {
@@ -1531,13 +1522,15 @@ async function closeBuyins(auto = false) {
   );
 
   const lateRegNote = (
-    <div className={`status-line ${buyinsClosed ? 'closed' : 'open'}`}>
+    <div className={`status-line ${buyinsClosed ? 'closed' : lateRegPassed ? 'due' : 'open'}`}>
       <span className="dot" />
       {buyinsClosed
         ? 'Buy-ins closed — no more rebuys'
-        : lateRegIndex >= 0
-          ? `Buy-ins open until end of ${lateRegLabel}`
-          : 'Buy-ins open'}
+        : lateRegPassed
+          ? `Buy-ins still open — ${lateRegLabel} is over`
+          : lateRegIndex >= 0
+            ? `Buy-ins open · close after ${lateRegLabel}`
+            : 'Buy-ins open'}
       {isAdminUnlocked && phase === 'game' && !buyinsClosed && (
         <button className="link-btn" onClick={() => closeBuyins()}>
           Close now
@@ -1654,9 +1647,9 @@ async function closeBuyins(auto = false) {
                 <NumberField label="Bounty per player" prefix="€" value={bounty} min={0} step={0.5} disabled={!isAdminUnlocked} onCommit={(v) => updateBounty(String(v))} />
               </div>
               <label className="field">
-                <span>Buy-ins close after</span>
+                <span>Remind admin to close buy-ins after</span>
                 <select value={lateRegLevel} onChange={(e) => updateLateRegLevel(Number(e.target.value))} disabled={!isAdminUnlocked}>
-                  <option value={0}>Manual only</option>
+                  <option value={0}>No reminder</option>
                   {playingLevels.map((level, i) => (
                     <option key={i} value={i + 1}>
                       Level {i + 1} · {blindsLabel(level)}

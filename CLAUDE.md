@@ -53,10 +53,11 @@ Existing lint errors (`any` in auth handlers) predate this work.
 - **Timer**: admin sets minutes per level (buttons 10/15/20/30 + "Other"). Mid-game changes apply to the
   current + later levels; if the current level already ran past the new length, it starts next level.
   New rooms use the admin's last-used minutes (localStorage `poker.levelMinutes`, default 15).
-- **House blinds** (big blind): 200, 400, 800 → buy-ins close after the 800 level (`lateRegLevel = 3`) →
+- **House blinds** (big blind): 200, 400, 800 → admin reminded to close buy-ins after the 800 level (`lateRegLevel = 3`) →
   1K, 2K, 4K, 8K, 10K, 20K, 40K, 80K, 100K, 200K. SB = BB/2. No scheduled breaks — admin pauses for breaks.
-- **Buy-ins closed** is derived: `settings.buyinsClosed || clock passed lateRegLevel`. Admin device also
-  writes the flag. Rebuys only while open (checkbox per busted player in the knockout wizard).
+- **Buy-ins close only when the admin taps Close** (`settings.buyinsClosed`). Never auto-close.
+  `lateRegLevel` is just a reminder: after that level the status line turns gold for the admin.
+  Rebuys only while open (checkbox per busted player in the knockout wizard).
 - **Knockouts**: wizard — who is out → one screen per busted player "who took this bounty" (multi-select =
   split that bounty) → winning hand + rebuys + summary. `bustedBy: Record<bustedId, winnerIds[]>`.
 - **Standings (live)**: Buy-in (paid, ×N rebuys) · Bounty net (won − lost). Admin taps an active row to open

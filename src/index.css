@@ -939,6 +939,10 @@ select {
   color: var(--accent-soft);
 }
 
+.status-line.due {
+  color: var(--gold);
+}
+
 .status-line.closed {
   color: #f7a9a9;
 }
