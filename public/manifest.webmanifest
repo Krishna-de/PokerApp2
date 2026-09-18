@@ -1,0 +1,14 @@
+{
+  "name": "Home Poker Tracker",
+  "short_name": "Poker",
+  "description": "Blinds clock, knockouts, bounties and payouts for home poker tournaments.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0c0e",
+  "theme_color": "#0b0c0e",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
