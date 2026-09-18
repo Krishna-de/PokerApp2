@@ -59,8 +59,9 @@ Existing lint errors (`any` in auth handlers) predate this work.
   writes the flag. Rebuys only while open (checkbox per busted player in the knockout wizard).
 - **Knockouts**: wizard — who is out → one screen per busted player "who took this bounty" (multi-select =
   split that bounty) → winning hand + rebuys + summary. `bustedBy: Record<bustedId, winnerIds[]>`.
-- **Standings**: Buy-in (paid, ×N rebuys) · Bounty (won − lost) · Net (bounty − buy-ins, before prizes).
-  Admin taps an active row to open the knockout wizard for that player.
+- **Standings (live)**: Buy-in (paid, ×N rebuys) · Bounty net (won − lost). Admin taps an active row to open
+  the knockout wizard for that player.
+- **Results**: pot net (prize − buy-ins) and bounty net shown **separately**, plus total. Never merge them.
 - **Admin**: PIN per room in `roomPins/{id}` (NOT in the public room). Admin stays unlocked across refresh
   when `room.currentAdmin.uid === me`; locks if someone else takes admin.
 - **Spectators**: `rooms` is publicly readable; guests watch read-only without an account.

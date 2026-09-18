@@ -1780,7 +1780,7 @@ select {
 .standings-head,
 .standing-row {
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) 62px 54px 58px;
+  grid-template-columns: 16px minmax(0, 1fr) 70px 78px;
   align-items: center;
   gap: 6px;
   width: 100%;
@@ -1995,6 +1995,30 @@ button.standing-row:active {
   margin-top: 2px;
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.net-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 3px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.net-pair strong {
+  margin-left: 2px;
+}
+
+.result-side {
+  flex-shrink: 0;
+  display: grid;
+  justify-items: end;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .result-total {

@@ -1832,15 +1832,12 @@ async function closeBuyins(auto = false) {
                 <span />
                 <span>Player</span>
                 <span>Buy-in</span>
-                <span>Bounty</span>
-                <span>Net</span>
+                <span>Bounty net</span>
               </div>
               <div className="standings-list">
                 {standings.map((p) => {
                   const tappable = isAdminUnlocked && p.active && activePlayers.length > 1;
                   const paid = p.buyins * buyIn;
-                  // Where the player stands right now, before any prize money: bounties won/lost minus buy-ins paid.
-                  const net = p.bountyBalance - paid;
                   const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}€${fmt(Math.abs(n))}`;
                   const content = (
                     <>
@@ -1850,8 +1847,7 @@ async function closeBuyins(auto = false) {
                         €{fmt(paid)}
                         {p.buyins > 1 && <span className="rebuy-tag">×{p.buyins}</span>}
                       </span>
-                      <span className={`col-num ${p.bountyBalance > 0 ? 'plus' : p.bountyBalance < 0 ? 'minus' : ''}`}>{signed(p.bountyBalance)}</span>
-                      <span className={`col-num net ${net > 0 ? 'plus' : net < 0 ? 'minus' : ''}`}>{signed(net)}</span>
+                      <span className={`col-num net ${p.bountyBalance > 0 ? 'plus' : p.bountyBalance < 0 ? 'minus' : ''}`}>{signed(p.bountyBalance)}</span>
                     </>
                   );
                   return tappable ? (
@@ -1929,20 +1925,31 @@ async function closeBuyins(auto = false) {
                   const payoutKey = payoutKeyForIndex(index);
                   const finishingAmount = payoutKey && index < payoutMode ? Number(payouts[payoutKey]) || 0 : 0;
                   const totalBuyinCost = p.buyins * buyIn;
-                  const totalReturn = finishingAmount - totalBuyinCost + p.bountyBalance;
+                  // Pot net = prize won − buy-ins paid; bounty net = bounties won − lost. Kept separate.
+                  const potNet = finishingAmount - totalBuyinCost;
+                  const totalReturn = potNet + p.bountyBalance;
+                  const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}€${fmt(Math.abs(n))}`;
+                  const tone = (n: number) => (n > 0 ? 'plus' : n < 0 ? 'minus' : '');
                   return (
                     <div className={`result-card ${index < 3 ? 'podium' : ''}`} key={p.id}>
                       <div className="medal">{placeIcon(index)}</div>
                       <div className="standing-main">
                         <div className="player-name">{p.name}</div>
-                        <div className="result-grid">
-                          <span>Prize €{fmt(finishingAmount)}</span>
-                          <span>Bounty €{fmt(p.bountyBalance)}</span>
-                          <span>Paid in €{fmt(totalBuyinCost)}</span>
+                        <div className="tiny muted">
+                          Prize €{fmt(finishingAmount)} · paid in €{fmt(totalBuyinCost)}
+                        </div>
+                        <div className="net-pair">
+                          <span>
+                            Pot net <strong className={tone(potNet)}>{signed(potNet)}</strong>
+                          </span>
+                          <span>
+                            Bounty net <strong className={tone(p.bountyBalance)}>{signed(p.bountyBalance)}</strong>
+                          </span>
                         </div>
                       </div>
-                      <div className={`result-total ${totalReturn >= 0 ? 'plus' : 'minus'}`}>
-                        {totalReturn > 0 ? '+' : ''}€{fmt(totalReturn)}
+                      <div className="result-side">
+                        <span>Total</span>
+                        <strong className={`result-total ${tone(totalReturn)}`}>{signed(totalReturn)}</strong>
                       </div>
                     </div>
                   );
