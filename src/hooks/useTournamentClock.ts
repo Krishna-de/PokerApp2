@@ -3,7 +3,8 @@ import { onValue, ref } from 'firebase/database';
 import { db } from '../firebase';
 import type { BlindLevel, ClockState, LevelSound } from '../types/app';
 import { blindsLabel, computeClock, type ClockView } from '../utils/blinds';
-import { keepScreenAwake, playSong, playSound, showSystemNotification, speak, stopSong, vibrate } from '../utils/alerts';
+import { keepScreenAwake, playClip, playSong, playSound, preloadClip, showSystemNotification, speak, stopSong, vibrate } from '../utils/alerts';
+import { isMusicSound, toneDataUrl, toneUidOf } from '../utils/tones';
 
 const ALERTS_KEY = 'poker.alertsEnabled';
 
@@ -52,11 +53,13 @@ function newLevelPhrase(level: BlindLevel) {
 function announceLevel(level: BlindLevel, sound: LevelSound) {
   stopSong();
   vibrate([400, 150, 400, 150, 800]);
-  const phrase = sound === 'song' && !level.isBreak ? 'Time is up! Time is up!' : `Time is up! Time is up! ${newLevelPhrase(level)}`;
+  const phrase = isMusicSound(sound) && !level.isBreak ? 'Time is up! Time is up!' : `Time is up! Time is up! ${newLevelPhrase(level)}`;
+  const toneUid = toneUidOf(sound);
   speak(phrase, () => {
     if (level.isBreak) playSound('break');
     else if (sound === 'fanfare') playSound('level');
     else if (sound === 'doot') playSound('doot');
+    else if (toneUid) void toneDataUrl(toneUid).then((data) => playClip(data));
     else void playSong();
   });
 }
@@ -130,7 +133,7 @@ export function useTournamentClock({ clock, levels, active, alertsEnabled, roomT
     // Spoken countdown over the last five seconds: "5, 4, 3, 2, 1".
     const secondsLeft = Math.ceil(view.remainingMs / 1000);
     const countdownKey = `${view.levelIndex}:${secondsLeft}`;
-    if (levelSound !== 'song' && view.running && view.nextLevel && secondsLeft >= 1 && secondsLeft <= 5 && lastCountdownRef.current !== countdownKey) {
+    if (!isMusicSound(levelSound) && view.running && view.nextLevel && secondsLeft >= 1 && secondsLeft <= 5 && lastCountdownRef.current !== countdownKey) {
       lastCountdownRef.current = countdownKey;
       playSound('tick');
       speak(String(secondsLeft));
@@ -146,6 +149,15 @@ export function useTournamentClock({ clock, levels, active, alertsEnabled, roomT
       }
     }
   }, [active, alertsEnabled, view, roomTitle, levelSound]);
+
+  // Download the room's uploaded tone ahead of time, so it starts instantly at blinds-up.
+  useEffect(() => {
+    const uid = toneUidOf(levelSound);
+    if (!active || !alertsEnabled || !uid) return;
+    void toneDataUrl(uid).then((data) => {
+      if (data) void preloadClip(data);
+    });
+  }, [active, alertsEnabled, levelSound]);
 
   // Tell everyone when the admin pauses or resumes the clock.
   const running = !!clock?.running;
@@ -184,7 +196,7 @@ export function useTournamentClock({ clock, levels, active, alertsEnabled, roomT
   /** Play exactly what the table will hear at the end of a level: countdown, then the announcement. */
   const previewAlert = useCallback(() => {
     const next = view.nextLevel && !view.nextLevel.isBreak ? view.nextLevel : view.level;
-    if (levelSound === 'song') {
+    if (isMusicSound(levelSound)) {
       announceLevel(next, levelSound);
       return;
     }

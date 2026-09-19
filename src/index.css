@@ -1721,6 +1721,33 @@ select {
   margin-bottom: 12px;
 }
 
+/* ---------- Uploaded tones ---------- */
+
+.tone-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--inset);
+  border: 1px solid var(--border);
+}
+
+.tone-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.tone-main .player-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icon-chip.danger {
+  color: var(--red);
+}
+
 /* ---------- Compact live view (up to 12 players) ---------- */
 
 .stats-strip {

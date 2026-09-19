@@ -9,7 +9,9 @@
     "rooms": {
       ".read": true,
       ".write": "auth != null && auth.provider != 'anonymous'",
-      ".indexOn": ["phase"]
+      ".indexOn": [
+        "phase"
+      ]
     },
     "roomPins": {
       "$roomId": {
@@ -20,6 +22,20 @@
     "history": {
       ".read": "auth != null",
       ".write": "auth != null"
+    },
+    "toneIndex": {
+      ".read": true,
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid && auth.provider != 'anonymous' && (!data.exists() || !newData.exists())",
+        ".validate": "newData.hasChildren(['name', 'ownerName', 'durationSec', 'sizeKb', 'createdAt']) && newData.child('name').isString() && newData.child('name').val().length <= 60 && newData.child('durationSec').isNumber() && newData.child('durationSec').val() <= 31 && newData.child('sizeKb').isNumber() && newData.child('sizeKb').val() <= 600"
+      }
+    },
+    "tones": {
+      "$uid": {
+        ".read": true,
+        ".write": "auth != null && auth.uid === $uid && auth.provider != 'anonymous' && (!data.exists() || !newData.exists())",
+        ".validate": "newData.hasChildren(['data']) && newData.child('data').isString() && newData.child('data').val().beginsWith('data:audio/') && newData.child('data').val().length <= 850000"
+      }
     }
   }
 }

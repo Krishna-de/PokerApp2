@@ -254,38 +254,42 @@ export function speak(text: string, onEnd?: () => void) {
   }
 }
 
-// ---------- Blinds-up song ("Blinds Rise" by gsrk_au, public/sounds/blinds-up.mp3) ----------
+// ---------- Music clips: the built-in song and player-uploaded tones ----------
 
-const SONG_URL = '/sounds/blinds-up.mp3';
-let songBuffer: AudioBuffer | null = null;
-let songLoading: Promise<AudioBuffer | null> | null = null;
-let songSource: AudioBufferSourceNode | null = null;
+/** "Blinds Rise" by gsrk_au, bundled with the app. */
+export const SONG_URL = '/sounds/blinds-up.mp3';
+const clips = new Map<string, Promise<AudioBuffer | null>>();
+let clipSource: AudioBufferSourceNode | null = null;
 
-/** Download and decode the song once, so it can start instantly (and without a tap) later. */
-export function preloadSong() {
+/** Download and decode a clip once (URL or data: URL), so it can start instantly and without a tap later. */
+export function preloadClip(src: string) {
   const audio = getContext();
   if (!audio) return Promise.resolve(null);
-  if (songBuffer) return Promise.resolve(songBuffer);
-  if (!songLoading) {
-    songLoading = fetch(SONG_URL)
+  let loading = clips.get(src);
+  if (!loading) {
+    loading = fetch(src)
       .then((res) => res.arrayBuffer())
       .then((data) => audio.decodeAudioData(data))
-      .then((buffer) => (songBuffer = buffer))
       .catch((error) => {
-        console.warn('Song failed to load', error);
-        songLoading = null;
+        console.warn('Clip failed to load', error);
+        clips.delete(src);
         return null;
       });
+    clips.set(src, loading);
   }
-  return songLoading;
+  return loading;
 }
 
-/** Play the blinds-up song; falls back to the fanfare if it can't be loaded. */
-export async function playSong() {
+export function preloadSong() {
+  return preloadClip(SONG_URL);
+}
+
+/** Play a clip; falls back to the fanfare if it can't be loaded. */
+export async function playClip(src: string | null) {
   const audio = getContext();
   if (!audio) return;
   if (audio.state !== 'running') void audio.resume();
-  const buffer = await preloadSong();
+  const buffer = src ? await preloadClip(src) : null;
   if (!buffer) {
     playSound('level');
     return;
@@ -297,19 +301,35 @@ export async function playSong() {
   source.buffer = buffer;
   source.connect(gain).connect(audio.destination);
   source.onended = () => {
-    if (songSource === source) songSource = null;
+    if (clipSource === source) clipSource = null;
   };
   source.start();
-  songSource = source;
+  clipSource = source;
+}
+
+export function playSong() {
+  return playClip(SONG_URL);
 }
 
 export function stopSong() {
   try {
-    songSource?.stop();
+    clipSource?.stop();
   } catch {
     // Already stopped.
   }
-  songSource = null;
+  clipSource = null;
+}
+
+/** Length in seconds of an audio file, or null if the browser can't decode it. */
+export async function audioDuration(data: ArrayBuffer) {
+  const audio = getContext();
+  if (!audio) return null;
+  try {
+    const buffer = await audio.decodeAudioData(data.slice(0));
+    return buffer.duration;
+  } catch {
+    return null;
+  }
 }
 
 export function vibrate(pattern: number[]) {

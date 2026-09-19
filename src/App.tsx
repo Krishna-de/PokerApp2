@@ -58,6 +58,9 @@ import TournamentClock from './components/TournamentClock';
 import BlindStructureEditor from './components/BlindStructureEditor';
 import NumberField from './components/NumberField';
 import MinutesPicker from './components/MinutesPicker';
+import ToneUploader from './components/ToneUploader';
+import { useToneIndex } from './hooks/useTones';
+import { toneSound, toneUidOf } from './utils/tones';
 import ThemePicker from './components/ThemePicker';
 import { MAX_PLACES, PAYOUT_SPLITS, defaultPlaces, splitPool } from './utils/payouts';
 import { useAlertsPreference, useTournamentClock } from './hooks/useTournamentClock';
@@ -133,6 +136,7 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [roomError, setRoomError] = useState('');
   const { rooms: liveRooms, loading: liveLoading, now: liveNow } = useLiveRooms();
+  const toneList = useToneIndex();
   const [alertsEnabled, setAlertsEnabled] = useAlertsPreference();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [identity, setIdentity] = useState<UserIdentity | null>(null);
@@ -1177,12 +1181,19 @@ async function closeBuyins() {
     );
   }
 
+  function soundLabel(sound: LevelSound) {
+    const uid = toneUidOf(sound);
+    if (uid) {
+      const tone = toneList.find((t) => t.uid === uid);
+      return tone ? `${tone.name} (${tone.ownerName})` : 'deleted tone — fanfare plays instead';
+    }
+    return sound === 'song' ? 'Blinds Rise song' : sound === 'doot' ? 'doot doot' : 'fanfare';
+  }
+
   async function setLevelSound(levelSound: LevelSound) {
     if (!room || !isAdminUnlocked) return;
     await patchRoom({ settings: { ...room.settings, levelSound } });
-    setAdminMessage(
-      levelSound === 'song' ? 'Blinds-up sound: Blinds Rise song.' : levelSound === 'doot' ? 'Blinds-up sound: doot doot.' : 'Blinds-up sound: fanfare.'
-    );
+    setAdminMessage(`Blinds-up sound: ${soundLabel(levelSound)}.`);
   }
 
   async function updateLateRegLevel(value: number) {
@@ -2131,15 +2142,38 @@ async function closeBuyins() {
                   </button>
                 ))}
               </div>
-              <p className="tiny muted" style={{ margin: 0 }}>
-                {(room.settings.levelSound ?? 'song') === 'song'
-                  ? 'Song: "Blinds Rise". '
-                  : (room.settings.levelSound ?? 'song') === 'doot'
-                    ? 'Doot doot trumpet. '
-                    : 'Brass fanfare. '}
+              {toneList.length > 0 && (
+                <>
+                  <div className="sub-label" style={{ marginTop: 4 }}>
+                    Player tones
+                  </div>
+                  <div className="chip-grid">
+                    {toneList.map((tone) => (
+                      <button
+                        key={tone.uid}
+                        type="button"
+                        className={`select-chip ${(room.settings.levelSound ?? 'song') === toneSound(tone.uid) ? 'selected' : ''}`}
+                        onClick={() => setLevelSound(toneSound(tone.uid))}
+                        disabled={!isAdminUnlocked}
+                      >
+                        🎧 {tone.name} <span className="muted">· {tone.ownerName}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              <p className="tiny muted" style={{ margin: '8px 0 0' }}>
+                Now: <strong>{soundLabel(room.settings.levelSound ?? 'song')}</strong>.{' '}
                 {isAdminUnlocked ? 'Plays on every phone when the blinds go up.' : 'Chosen by the admin for this room.'}
               </p>
             </section>
+
+            {identity && (
+              <section className="card">
+                <div className="section-title">My blinds-up tone</div>
+                <ToneUploader user={identity} myTone={toneList.find((t) => t.uid === identity.uid)} onMessage={setAdminMessage} />
+              </section>
+            )}
 
             <section className="card">
               <div className="section-head">

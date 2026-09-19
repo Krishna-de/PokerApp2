@@ -48,7 +48,8 @@ export type RoomEventType =
   | 'blinds_updated'
   | 'title_changed';
 
-export type LevelSound = 'song' | 'fanfare' | 'doot';
+/** 'tone:<uid>' = a player's uploaded MP3 (see src/utils/tones.ts). */
+export type LevelSound = 'song' | 'fanfare' | 'doot' | `tone:${string}`;
 
 export type BlindLevel = {
   sb: number;
