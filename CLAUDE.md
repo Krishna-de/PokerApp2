@@ -77,6 +77,9 @@ Existing lint errors (`any` in auth handlers) predate this work.
   length) + `tones/{uid}` (audio). Rules allow create or delete only, never overwrite → "delete to upload again".
   Admin picks it as `settings.levelSound = 'tone:<uid>'`; treated like the song (no countdown/amounts); if the
   tone was deleted the fanfare plays. No Firebase Storage (would need the Blaze plan).
+- **Knockout alerts**: every phone (incl. spectators) watches `events[0]`; a new `knockout_recorded` shows a toast
+  with who busted whom + bounty won/lost (`meta.bountyText`) + rebuys, plus a system notification when the app is
+  in the background (alerts on). **No sound or voice for knockouts.** Old events are never replayed.
 - **Pause/resume**: every phone gets a toast when the admin pauses/resumes; with alerts on also a tone, voice
   ("Clock paused." / "Clock resumed."), vibration, and a notification when the app is in the background.
   Song mode: NO countdown and NO blind amounts — just "Time is up! Time is up!" then the song.

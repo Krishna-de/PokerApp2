@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
   BellOff,
@@ -67,7 +67,7 @@ import { useAlertsPreference, useTournamentClock } from './hooks/useTournamentCl
 import { useLiveRooms } from './hooks/useLiveRooms';
 import { blindsLabel, chips, computeClock, formatClock, levelIndexForNumber, normalizeLevels, rememberMinutes } from './utils/blinds';
 import { randomTournamentName } from './utils/names';
-import { playSound, requestNotificationPermission, stopSong, unlockAudio, vibrate } from './utils/alerts';
+import { playSound, requestNotificationPermission, showSystemNotification, stopSong, unlockAudio, vibrate } from './utils/alerts';
 
 import {
   fmt,
@@ -369,10 +369,41 @@ export default function App() {
     else if (currentAdminUid) setIsAdminUnlocked(false);
   }, [currentAdminUid, identity, roomId]);
 
+  // Knockouts (and undos) are announced on every phone, including spectators.
+  const lastEventIdRef = useRef<string | null>(null);
+  const latestEventId = events[0]?.id ?? null;
+  useEffect(() => {
+    lastEventIdRef.current = null;
+  }, [roomId]);
+  useEffect(() => {
+    if (!latestEventId) return;
+    const previous = lastEventIdRef.current;
+    lastEventIdRef.current = latestEventId;
+    // First load of a room: don't replay old knockouts.
+    if (previous === null || previous === latestEventId) return;
+    const seen = events.findIndex((e) => e.id === previous);
+    const fresh = (seen === -1 ? events.slice(0, 1) : events.slice(0, seen)).reverse();
+    fresh.forEach((event) => {
+      if (event.type === 'undo_action') {
+        setAdminMessage('↩ Admin undid the last action');
+        return;
+      }
+      if (event.type !== 'knockout_recorded') return;
+      const meta = (event.meta ?? {}) as { details?: string; eliminatedNames?: string; winnerNames?: string; bountyText?: string; rebuys?: string[] };
+      const details = (meta.details ?? `${meta.eliminatedNames} by ${meta.winnerNames}`).replace(/; /g, ' · ');
+      const rebuys = meta.rebuys?.length ? ` · ${meta.rebuys.join(', ')} ${meta.rebuys.length === 1 ? 'rebuys' : 'rebuy'}` : '';
+      const message = `💀 Knockout: ${details}${meta.bountyText ? ` · ${meta.bountyText}` : ''}${rebuys}`;
+      setAdminMessage(message);
+      // Notification only (no sound) when the app is in the background.
+      if (alertsEnabled && document.visibilityState === 'hidden') void showSystemNotification('💀 Knockout', message.replace('💀 Knockout: ', ''));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestEventId]);
+
   // Admin messages show as a toast wherever you are in the app.
   useEffect(() => {
     if (!adminMessage) return;
-    const id = window.setTimeout(() => setAdminMessage(''), 4000);
+    const id = window.setTimeout(() => setAdminMessage(''), Math.min(9000, 4000 + adminMessage.length * 40));
     return () => window.clearTimeout(id);
   }, [adminMessage]);
 
@@ -838,8 +869,15 @@ const finalStandings =
         .join('; ');
       const rebuys = eliminatedPlayers.filter((p) => wantsRebuy(p.id)).map((p) => p.name);
 
+      // Who won and who lost bounty money, for the knockout alert on every phone.
+      const bountyText = [
+        ...Object.entries(gains).map(([id, amount]) => `${nameOf(id)} +€${fmt(amount)}`),
+        ...eliminatedPlayers.map((p) => `${p.name} −€${fmt(bounty)}`),
+      ].join(' · ');
+
       const event = createEvent('knockout_recorded', identity, {
         details,
+        bountyText,
         eliminatedNames: eliminatedPlayers.map((p) => p.name).join(', '),
         winnerNames: Object.keys(gains).map(nameOf).join(', '),
         winningHand,
