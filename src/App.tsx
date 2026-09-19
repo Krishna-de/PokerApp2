@@ -52,16 +52,19 @@ import type {
   UndoState,
   BlindLevel,
   ClockState,
+  LevelSound,
 } from './types/app';
 import TournamentClock from './components/TournamentClock';
 import BlindStructureEditor from './components/BlindStructureEditor';
 import NumberField from './components/NumberField';
+import MinutesPicker from './components/MinutesPicker';
 import ThemePicker from './components/ThemePicker';
+import { MAX_PLACES, PAYOUT_SPLITS, defaultPlaces, splitPool } from './utils/payouts';
 import { useAlertsPreference, useTournamentClock } from './hooks/useTournamentClock';
 import { useLiveRooms } from './hooks/useLiveRooms';
 import { blindsLabel, chips, computeClock, formatClock, levelIndexForNumber, normalizeLevels, rememberMinutes } from './utils/blinds';
 import { randomTournamentName } from './utils/names';
-import { playSound, requestNotificationPermission, unlockAudio, vibrate } from './utils/alerts';
+import { playSound, requestNotificationPermission, stopSong, unlockAudio, vibrate } from './utils/alerts';
 
 import {
   fmt,
@@ -172,7 +175,9 @@ export default function App() {
   const [selectedEliminatedIds, setSelectedEliminatedIds] = useState<string[]>([]);
   // For each busted player: who took their bounty (several ids = that bounty is split).
   const [bustedBy, setBustedBy] = useState<Record<string, string[]>>({});
+  // Rebuy is ticked by default for every busted player while buy-ins are open; false = admin unticked it.
   const [rebuyMap, setRebuyMap] = useState<Record<string, boolean>>({});
+  const wantsRebuy = (id: string) => !buyinsClosed && rebuyMap[id] !== false;
   const [winningHand, setWinningHand] = useState<WinningHand | ''>('');
 
   const [showPayoutModal, setShowPayoutModal] = useState(false);
@@ -313,7 +318,7 @@ export default function App() {
   const adminPin = room?.settings.adminPin ?? '';
   const pinCreated = room?.settings.pinCreated ?? false;
   const buyinsClosedFlag = room?.settings.buyinsClosed ?? false;
-  const payoutMode = room?.payouts.mode ?? 3;
+  const payoutMode = Math.min(6, Math.max(1, Number(room?.payouts.mode) || 3));
   const payouts = room?.payouts ?? {
     mode: 3 as PayoutMode,
     first: '',
@@ -335,6 +340,8 @@ export default function App() {
     active: phase === 'game',
     alertsEnabled,
     roomTitle: room?.title ?? 'Poker',
+    levelSound: room?.settings.levelSound ?? 'song',
+    onNotice: setAdminMessage,
   });
 
   // Buy-ins only close when the admin closes them. After the reminder level the admin gets a nudge.
@@ -769,7 +776,8 @@ const finalStandings =
   }
 
   function toggleRebuyFor(id: string) {
-    setRebuyMap((prev) => ({ ...prev, [id]: !prev[id] }));
+    // Unset means ticked (default), so the first tap unticks.
+    setRebuyMap((prev) => ({ ...prev, [id]: prev[id] === false }));
   }
 
   /** Bounty won per player id for the current knockout form. */
@@ -807,7 +815,7 @@ const finalStandings =
 
       const updatedPlayers = players.map((p) => {
         if (selectedEliminatedIds.includes(p.id)) {
-          const rebuy = buyinsClosed ? false : !!rebuyMap[p.id];
+          const rebuy = wantsRebuy(p.id);
           return {
             ...p,
             active: rebuy,
@@ -824,7 +832,7 @@ const finalStandings =
       const details = selectedEliminatedIds
         .map((bid) => `${nameOf(bid)} by ${(bustedBy[bid] ?? []).map(nameOf).join(' & ')}`)
         .join('; ');
-      const rebuys = buyinsClosed ? [] : eliminatedPlayers.filter((p) => rebuyMap[p.id]).map((p) => p.name);
+      const rebuys = eliminatedPlayers.filter((p) => wantsRebuy(p.id)).map((p) => p.name);
 
       const event = createEvent('knockout_recorded', identity, {
         details,
@@ -963,10 +971,37 @@ async function closeBuyins() {
 }
 
 
-  async function updatePayoutMode(mode: PayoutMode) {
+  /** Fill the payout amounts with the default split for `places` (whole euros). */
+  async function applyDefaultPayouts(places: number) {
+    if (!room || !isAdminUnlocked) return;
+    const amounts = splitPool(prizePool, places);
+    const next = { ...room.payouts, mode: places };
+    PAYOUT_KEYS.forEach((key, i) => {
+      next[key] = i < places ? String(amounts[i]) : '';
+    });
+    await patchRoom({ payouts: next });
+  }
+
+  async function changePlaces(delta: number) {
     if (!room || !isAdminUnlocked || !identity) return;
+    const mode = Math.min(MAX_PLACES, Math.max(1, payoutMode + delta));
+    if (mode === payoutMode) return;
+    const next = { ...room.payouts, mode };
+    // Removing a place clears its amount and finisher so nothing stale is paid out.
+    if (delta < 0) {
+      const removed = PAYOUT_KEYS[payoutMode - 1];
+      next[removed] = '';
+      setFinishers((prev) => ({ ...prev, [removed]: '' }));
+    }
     const event = createEvent('payouts_updated', identity, { mode });
-    await patchRoom({ payouts: { ...room.payouts, mode }, events: [event, ...events] });
+    await patchRoom({ payouts: next, events: [event, ...events] });
+  }
+
+  function openFinishModal() {
+    // First time: pre-fill the house default for this table size.
+    const anyAmount = PAYOUT_KEYS.some((key) => String(payouts[key] ?? '').trim() !== '');
+    if (!anyAmount) void applyDefaultPayouts(defaultPlaces(players.length));
+    setShowPayoutModal(true);
   }
 
   async function updatePayoutValue(key: PayoutKey, value: string) {
@@ -1142,6 +1177,14 @@ async function closeBuyins() {
     );
   }
 
+  async function setLevelSound(levelSound: LevelSound) {
+    if (!room || !isAdminUnlocked) return;
+    await patchRoom({ settings: { ...room.settings, levelSound } });
+    setAdminMessage(
+      levelSound === 'song' ? 'Blinds-up sound: Blinds Rise song.' : levelSound === 'doot' ? 'Blinds-up sound: doot doot.' : 'Blinds-up sound: fanfare.'
+    );
+  }
+
   async function updateLateRegLevel(value: number) {
     if (!room || !isAdminUnlocked) return;
     await patchRoom({ settings: { ...room.settings, lateRegLevel: value } });
@@ -1149,6 +1192,7 @@ async function closeBuyins() {
 
   async function toggleAlerts() {
     if (alertsEnabled) {
+      stopSong();
       setAlertsEnabled(false);
       setAdminMessage('Alerts turned off on this device.');
       return;
@@ -1545,31 +1589,9 @@ async function closeBuyins() {
 
   const levelTimer = (
     <div className="field">
-      <span>{phase === 'game' ? 'Level length from now (minutes)' : 'Timer — minutes per level'}</span>
+      <span>{phase === 'game' ? 'Level length from now' : 'Round time'}</span>
       {isAdminUnlocked ? (
-        <div className="minute-chips">
-          {[10, 15, 20, 30].map((m) => (
-            <button key={m} className={`select-chip ${uniformMinutes === m ? 'selected' : ''}`} onClick={() => setLevelMinutes(m)}>
-              {m}
-            </button>
-          ))}
-          <input
-            key={uniformMinutes ?? 'mixed'}
-            className={`minute-input ${uniformMinutes && ![10, 15, 20, 30].includes(uniformMinutes) ? 'selected' : ''}`}
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={240}
-            placeholder="Other"
-            defaultValue={uniformMinutes && ![10, 15, 20, 30].includes(uniformMinutes) ? uniformMinutes : ''}
-            aria-label="Custom minutes per level"
-            onBlur={(e) => {
-              const n = Math.round(Number(e.target.value));
-              if (n >= 1 && n <= 240 && n !== uniformMinutes) void setLevelMinutes(n);
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-          />
-        </div>
+        <MinutesPicker value={uniformMinutes ?? playMinutes[0] ?? 15} onCommit={setLevelMinutes} />
       ) : (
         <>
           <div className="blind-summary-line">{uniformMinutes ? `${uniformMinutes} min per level` : 'Mixed level lengths'}</div>
@@ -1886,7 +1908,7 @@ async function closeBuyins() {
                 </button>
                 <button
                   className="action-btn gold"
-                  onClick={() => setShowPayoutModal(true)}
+                  onClick={openFinishModal}
                   disabled={activePlayers.length > FINISH_ALLOWED_AT}
                   aria-label={activePlayers.length > FINISH_ALLOWED_AT ? `Finish available at ${FINISH_ALLOWED_AT} players` : 'Finish tournament'}
                 >
@@ -2090,6 +2112,36 @@ async function closeBuyins() {
             </section>
 
             <section className="card">
+              <div className="section-title">Blinds-up sound</div>
+              <div className="segmented" style={{ marginBottom: 8 }}>
+                {(
+                  [
+                    ['song', '🎵 Song'],
+                    ['fanfare', '🎺 Fanfare'],
+                    ['doot', '💀 Doot'],
+                  ] as [LevelSound, string][]
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    className={(room.settings.levelSound ?? 'song') === value ? 'active' : ''}
+                    onClick={() => setLevelSound(value)}
+                    disabled={!isAdminUnlocked}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="tiny muted" style={{ margin: 0 }}>
+                {(room.settings.levelSound ?? 'song') === 'song'
+                  ? 'Song: "Blinds Rise". '
+                  : (room.settings.levelSound ?? 'song') === 'doot'
+                    ? 'Doot doot trumpet. '
+                    : 'Brass fanfare. '}
+                {isAdminUnlocked ? 'Plays on every phone when the blinds go up.' : 'Chosen by the admin for this room.'}
+              </p>
+            </section>
+
+            <section className="card">
               <div className="section-head">
                 <div className="section-title">Blind alerts on this phone</div>
                 <span className={`pill ${alertsEnabled ? 'pill-green' : ''}`}>{alertsEnabled ? 'On' : 'Off'}</span>
@@ -2103,7 +2155,7 @@ async function closeBuyins() {
               </button>
               {alertsEnabled && (
                 <button className="btn btn-ghost btn-block" style={{ marginTop: 8 }} onClick={previewAlert}>
-                  Test "time up" sound
+                  Test blinds-up (countdown, voice, sound)
                 </button>
               )}
               <p className="tiny muted" style={{ marginBottom: 0 }}>
@@ -2291,15 +2343,15 @@ async function closeBuyins() {
                                 key={`rebuy-${id}`}
                                 type="button"
                                 role="checkbox"
-                                aria-checked={!!rebuyMap[id]}
-                                className={`rebuy-toggle ${rebuyMap[id] ? 'active' : ''}`}
+                                aria-checked={wantsRebuy(id)}
+                                className={`rebuy-toggle ${wantsRebuy(id) ? 'active' : ''}`}
                                 onClick={() => toggleRebuyFor(id)}
                               >
                                 <span className="check" aria-hidden="true">
-                                  {rebuyMap[id] ? '✓' : ''}
+                                  {wantsRebuy(id) ? '✓' : ''}
                                 </span>
                                 <span className="rebuy-name">{player?.name} rebuys</span>
-                                <strong>{rebuyMap[id] ? `+€${fmt(buyIn)}` : ''}</strong>
+                                <strong>{wantsRebuy(id) ? `+€${fmt(buyIn)}` : 'No rebuy'}</strong>
                               </button>
                             );
                           })}
@@ -2361,20 +2413,31 @@ async function closeBuyins() {
             </div>
             <div className="modal-body">
               <p className="modal-copy muted">
-                Prize pool: <strong className="gold">€{fmt(prizePool)}</strong>. Pick the places and split the pool.
+                Prize pool <strong className="gold">€{fmt(prizePool)}</strong> · {players.length} players · default {defaultPlaces(players.length)} paid
+                places. Edit any amount.
               </p>
-              <div className="segmented" style={{ marginBottom: 12 }}>
-                {[3, 4, 5, 6].map((mode) => (
-                  <button key={mode} className={payoutMode === mode ? 'active' : ''} onClick={() => updatePayoutMode(mode as PayoutMode)}>
-                    Top {mode}
-                  </button>
-                ))}
+              <div className="places-bar">
+                <button className="btn btn-dark" onClick={() => changePlaces(-1)} disabled={payoutMode <= 1} aria-label="Remove a place">
+                  −
+                </button>
+                <div className="places-count">
+                  <strong>{payoutMode}</strong> paid {payoutMode === 1 ? 'place' : 'places'}
+                </div>
+                <button className="btn btn-dark" onClick={() => changePlaces(1)} disabled={payoutMode >= MAX_PLACES} aria-label="Add a place">
+                  +
+                </button>
               </div>
+              <button className="btn btn-ghost btn-block reset-split" onClick={() => applyDefaultPayouts(payoutMode)}>
+                Reset to default split ({(PAYOUT_SPLITS[payoutMode] ?? []).join(' / ')}%)
+              </button>
               {PAYOUT_KEYS.slice(0, payoutMode).map((key) => (
                 <div className="payout-card" key={key}>
                   <div className="payout-place">
                     <span>{PLACE_META[key].emoji}</span>
                     <span>{PLACE_META[key].label}</span>
+                    {prizePool > 0 && Number(payouts[key]) > 0 && (
+                      <span className="payout-pct">{Math.round((Number(payouts[key]) / prizePool) * 100)}%</span>
+                    )}
                   </div>
                   <select value={finishers[key]} onChange={(e) => setFinishers((prev) => ({ ...prev, [key]: e.target.value }))}>
                     <option value="">Select player</option>

@@ -50,19 +50,32 @@ Existing lint errors (`any` in auth handlers) predate this work.
   Every device derives the current level with `computeClock` — nobody writes "level up".
   Whenever levels change mid-game, **re-anchor the clock** to the current level (`saveLevels` does this);
   otherwise changing earlier levels' minutes makes the clock jump levels.
-- **Timer**: admin sets minutes per level (buttons 10/15/20/30 + "Other"). Mid-game changes apply to the
+- **Timer**: admin sets minutes per level with `MinutesPicker`: chips 10 / 15 / 20 / 25 + "Other" (opens a number box + Set). Mid-game changes apply to the
   current + later levels; if the current level already ran past the new length, it starts next level.
   New rooms use the admin's last-used minutes (localStorage `poker.levelMinutes`, default 15).
 - **House blinds** (big blind): 200, 400, 800 → admin reminded to close buy-ins after the 800 level (`lateRegLevel = 3`) →
   1K, 2K, 4K, 8K, 10K, 20K, 40K, 80K, 100K, 200K. SB = BB/2. No scheduled breaks — admin pauses for breaks.
 - **Buy-ins close only when the admin taps Close** (`settings.buyinsClosed`). Never auto-close.
   `lateRegLevel` is just a reminder: after that level the status line turns gold for the admin.
-  Rebuys only while open (checkbox per busted player in the knockout wizard).
+  Rebuys only while open; the rebuy checkbox is **ticked by default** for each busted player (admin unticks).
 - **Knockouts**: wizard — who is out → one screen per busted player "who took this bounty" (multi-select =
   split that bounty) → winning hand + rebuys + summary. `bustedBy: Record<bustedId, winnerIds[]>`.
 - **Standings (live)**: Buy-in (paid, ×N rebuys) · Bounty net (won − lost). Admin taps an active row to open
   the knockout wizard for that player.
+- **Payouts** (`src/utils/payouts.ts`): defaults only, never locked. Players ≤5 → 2 places 60/40, 6–9 → 3 places
+  50/30/20, 10+ → 4 places 40/30/20/10. Pre-filled as whole-euro **amounts** (leftover to 1st) when the finish
+  modal first opens; admin edits any amount, adds/removes places (1–6), or resets to the default split.
 - **Results**: pot net (prize − buy-ins) and bounty net shown **separately**, plus total. Never merge them.
+- **Blinds-up sequence** (alerts on): spoken 5-4-3-2-1 → "Time is up! Time is up! Blinds are now X, Y." →
+  song `public/sounds/blinds-up.mp3` ("Blinds Rise" by gsrk_au, 19.9 s, trimmed + loudness-normalised from the
+  owner's recording with ffmpeg). Played through Web Audio (preloaded on the alerts tap) so it starts without a
+  tap; falls back to the fanfare if it fails to load. Breaks get a chime instead of the song.
+  Admin picks per room in Room tab → "Blinds-up sound": `settings.levelSound` = 'song' (default) | 'fanfare' |
+  'doot' (synthesised skeleton-trumpet "doot doot", own Web Audio code — no downloaded meme clips).
+- **Pause/resume**: every phone gets a toast when the admin pauses/resumes; with alerts on also a tone, voice
+  ("Clock paused." / "Clock resumed."), vibration, and a notification when the app is in the background.
+  Song mode: NO countdown and NO blind amounts — just "Time is up! Time is up!" then the song.
+  Fanfare mode: countdown 5-4-3-2-1 → "Time is up! … Blinds are now X, Y." → fanfare.
 - **Admin**: PIN per room in `roomPins/{id}` (NOT in the public room). Admin stays unlocked across refresh
   when `room.currentAdmin.uid === me`; locks if someone else takes admin.
 - **Spectators**: `rooms` is publicly readable; guests watch read-only without an account.

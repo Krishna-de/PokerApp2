@@ -8,7 +8,8 @@ export type Player = {
 };
 
 export type PayoutKey = 'first' | 'second' | 'third' | 'fourth' | 'fifth' | 'sixth';
-export type PayoutMode = 3 | 4 | 5 | 6;
+/** Number of paid places (1–6). */
+export type PayoutMode = number;
 export type Phase = 'setup' | 'game' | 'end';
 export type AppPage = 'auth' | 'home' | 'setup' | 'live' | 'history' | 'completed';
 export type AuthMode = 'login' | 'register' | 'reset';
@@ -46,6 +47,8 @@ export type RoomEventType =
   | 'level_changed'
   | 'blinds_updated'
   | 'title_changed';
+
+export type LevelSound = 'song' | 'fanfare' | 'doot';
 
 export type BlindLevel = {
   sb: number;
@@ -123,6 +126,8 @@ export type RoomState = {
     levels?: BlindLevel[];
     /** Buy-ins close automatically when this level (1-based, breaks not counted) ends. 0 = manual. */
     lateRegLevel?: number;
+    /** What plays after the "Time is up" announcement. Default: 'song'. */
+    levelSound?: LevelSound;
   };
   clock?: ClockState;
   users: UserIdentity[];

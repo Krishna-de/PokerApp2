@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onValue, ref } from 'firebase/database';
 import { db } from '../firebase';
-import type { BlindLevel, ClockState } from '../types/app';
+import type { BlindLevel, ClockState, LevelSound } from '../types/app';
 import { blindsLabel, computeClock, type ClockView } from '../utils/blinds';
-import { keepScreenAwake, playSound, showSystemNotification, speak, vibrate } from '../utils/alerts';
+import { keepScreenAwake, playSong, playSound, showSystemNotification, speak, stopSong, vibrate } from '../utils/alerts';
 
 const ALERTS_KEY = 'poker.alertsEnabled';
 
@@ -44,14 +44,21 @@ function newLevelPhrase(level: BlindLevel) {
   return `Blinds are now ${level.sb}, ${level.bb}${ante}.`;
 }
 
-/** "Time is up! Time is up!", fanfare, then the new blinds. */
-function announceLevel(level: BlindLevel) {
-  speak('Time is up! Time is up!');
-  window.setTimeout(() => {
-    playSound(level.isBreak ? 'break' : 'level');
-    vibrate([400, 150, 400, 150, 800]);
-  }, 1700);
-  window.setTimeout(() => speak(newLevelPhrase(level)), level.isBreak ? 3000 : 3900);
+/**
+ * Song mode: "Time is up! Time is up!" then the song (no countdown, no amounts).
+ * Fanfare mode: "Time is up! Time is up! Blinds are now 500, 1000." then the fanfare.
+ * Breaks get a chime.
+ */
+function announceLevel(level: BlindLevel, sound: LevelSound) {
+  stopSong();
+  vibrate([400, 150, 400, 150, 800]);
+  const phrase = sound === 'song' && !level.isBreak ? 'Time is up! Time is up!' : `Time is up! Time is up! ${newLevelPhrase(level)}`;
+  speak(phrase, () => {
+    if (level.isBreak) playSound('break');
+    else if (sound === 'fanfare') playSound('level');
+    else if (sound === 'doot') playSound('doot');
+    else void playSong();
+  });
 }
 
 type Options = {
@@ -60,9 +67,12 @@ type Options = {
   active: boolean;
   alertsEnabled: boolean;
   roomTitle: string;
+  levelSound: LevelSound;
+  /** Shown on every phone (alerts on or off) when the admin pauses or resumes the clock. */
+  onNotice?: (message: string) => void;
 };
 
-export function useTournamentClock({ clock, levels, active, alertsEnabled, roomTitle }: Options) {
+export function useTournamentClock({ clock, levels, active, alertsEnabled, roomTitle, levelSound, onNotice }: Options) {
   const offset = useServerOffset();
   const serverNow = useCallback(() => Date.now() + offset, [offset]);
   const [now, setNow] = useState(() => Date.now());
@@ -106,7 +116,7 @@ export function useTournamentClock({ clock, levels, active, alertsEnabled, roomT
         ? `${level.minutes} min break${nextLevel ? ` · next ${blindsLabel(nextLevel)}` : ''}`
         : `${blindsLabel(level)} · ${level.minutes} min`;
       if (view.levelIndex > prevLevel) {
-        announceLevel(level);
+        announceLevel(level, levelSound);
       } else {
         // Admin stepped back a level: just a short cue.
         playSound('warning');
@@ -120,7 +130,7 @@ export function useTournamentClock({ clock, levels, active, alertsEnabled, roomT
     // Spoken countdown over the last five seconds: "5, 4, 3, 2, 1".
     const secondsLeft = Math.ceil(view.remainingMs / 1000);
     const countdownKey = `${view.levelIndex}:${secondsLeft}`;
-    if (view.running && view.nextLevel && secondsLeft >= 1 && secondsLeft <= 5 && lastCountdownRef.current !== countdownKey) {
+    if (levelSound !== 'song' && view.running && view.nextLevel && secondsLeft >= 1 && secondsLeft <= 5 && lastCountdownRef.current !== countdownKey) {
       lastCountdownRef.current = countdownKey;
       playSound('tick');
       speak(String(secondsLeft));
@@ -135,7 +145,27 @@ export function useTournamentClock({ clock, levels, active, alertsEnabled, roomT
         void showSystemNotification('⏱ 1 minute left', `Next: ${blindsLabel(view.nextLevel)}`);
       }
     }
-  }, [active, alertsEnabled, view, roomTitle]);
+  }, [active, alertsEnabled, view, roomTitle, levelSound]);
+
+  // Tell everyone when the admin pauses or resumes the clock.
+  const running = !!clock?.running;
+  const lastRunningRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!active) {
+      lastRunningRef.current = null;
+      return;
+    }
+    const prev = lastRunningRef.current;
+    lastRunningRef.current = running;
+    if (prev === null || prev === running) return;
+    const message = running ? '▶ Clock resumed' : '⏸ Clock paused by the admin';
+    onNotice?.(message);
+    if (!alertsEnabled) return;
+    playSound(running ? 'resume' : 'pause');
+    vibrate(running ? [150, 80, 300] : [300, 80, 150]);
+    speak(running ? 'Clock resumed.' : 'Clock paused.');
+    if (document.visibilityState === 'hidden') void showSystemNotification(message, roomTitle);
+  }, [active, running, alertsEnabled, onNotice, roomTitle]);
 
   // Keep the phone screen on while the clock runs, so timers and sounds are not suspended.
   useEffect(() => {
@@ -154,14 +184,18 @@ export function useTournamentClock({ clock, levels, active, alertsEnabled, roomT
   /** Play exactly what the table will hear at the end of a level: countdown, then the announcement. */
   const previewAlert = useCallback(() => {
     const next = view.nextLevel && !view.nextLevel.isBreak ? view.nextLevel : view.level;
+    if (levelSound === 'song') {
+      announceLevel(next, levelSound);
+      return;
+    }
     [5, 4, 3, 2, 1].forEach((n, i) =>
       window.setTimeout(() => {
         playSound('tick');
         speak(String(n));
       }, i * 1000)
     );
-    window.setTimeout(() => announceLevel(next), 5000);
-  }, [view.level, view.nextLevel]);
+    window.setTimeout(() => announceLevel(next, levelSound), 5000);
+  }, [view.level, view.nextLevel, levelSound]);
 
   return { view, serverNow, previewAlert };
 }

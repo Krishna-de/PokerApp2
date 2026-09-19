@@ -37,6 +37,7 @@ export async function unlockAudio() {
   } catch {
     // Speech not supported.
   }
+  void preloadSong();
   return audio.state === 'running';
 }
 
@@ -53,13 +54,31 @@ function tone(audio: AudioContext, freq: number, start: number, length: number, 
   osc.stop(start + length + 0.05);
 }
 
-export type AlertSound = 'level' | 'break' | 'warning' | 'tick' | 'test';
+export type AlertSound = 'level' | 'break' | 'warning' | 'tick' | 'doot' | 'pause' | 'resume' | 'test';
 
 export function playSound(kind: AlertSound) {
   const audio = getContext();
   if (!audio) return;
   if (audio.state !== 'running') void audio.resume();
   const t = audio.currentTime + 0.05;
+
+  if (kind === 'doot') {
+    // "Doot doot … doot doot": two pairs of short, nasal trumpet notes with a little upward scoop.
+    [0, 0.34, 1.0, 1.34].forEach((at) => trumpet(audio, 466.16, t + at, 0.24, 0.5));
+    return;
+  }
+
+  if (kind === 'pause') {
+    tone(audio, 659.25, t, 0.22, 0.35, 'triangle');
+    tone(audio, 440, t + 0.24, 0.4, 0.35, 'triangle');
+    return;
+  }
+
+  if (kind === 'resume') {
+    tone(audio, 440, t, 0.22, 0.35, 'triangle');
+    tone(audio, 659.25, t + 0.24, 0.4, 0.35, 'triangle');
+    return;
+  }
 
   if (kind === 'tick') {
     tone(audio, 1320, t, 0.08, 0.25, 'square');
@@ -94,6 +113,30 @@ export function playSound(kind: AlertSound) {
     whistle(audio, t + at - 0.35);
     pop(audio, t + at, 0.55 - i * 0.05);
     crackle(audio, t + at + 0.08);
+  });
+}
+
+/** Nasal "doot": saw + square through a bandpass (trumpet mouthpiece), pitch scooping up into the note. */
+function trumpet(audio: AudioContext, freq: number, start: number, length: number, volume: number) {
+  const band = audio.createBiquadFilter();
+  band.type = 'bandpass';
+  band.frequency.setValueAtTime(freq * 3, start);
+  band.Q.value = 1.4;
+  const gain = audio.createGain();
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.025);
+  gain.gain.setValueAtTime(volume * 0.85, start + length * 0.7);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + length);
+  band.connect(gain).connect(audio.destination);
+  (['sawtooth', 'square'] as OscillatorType[]).forEach((type, i) => {
+    const osc = audio.createOscillator();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq * 0.94, start);
+    osc.frequency.exponentialRampToValueAtTime(freq, start + 0.04);
+    osc.detune.value = i === 0 ? -4 : 4;
+    osc.connect(band);
+    osc.start(start);
+    osc.stop(start + length + 0.05);
   });
 }
 
@@ -178,9 +221,20 @@ function whistle(audio: AudioContext, start: number) {
 }
 
 /** Speak text aloud with the phone's built-in voice (no downloads). */
-export function speak(text: string) {
+export function speak(text: string, onEnd?: () => void) {
   const synth = window.speechSynthesis;
-  if (!synth || typeof SpeechSynthesisUtterance === 'undefined') return;
+  if (!synth || typeof SpeechSynthesisUtterance === 'undefined') {
+    onEnd?.();
+    return;
+  }
+  // Speech 'end' events are unreliable on some phones, so fall back to a timer.
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    onEnd?.();
+  };
+  if (onEnd) window.setTimeout(finish, 800 + text.length * 90);
   try {
     synth.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
@@ -191,10 +245,71 @@ export function speak(text: string) {
     const voices = synth.getVoices();
     const english = voices.find((v) => /en[-_](US|GB|IN|AU)/i.test(v.lang) && /female|samantha|google|zira|karen/i.test(v.name)) ?? voices.find((v) => v.lang?.startsWith('en'));
     if (english) utterance.voice = english;
+    utterance.onend = finish;
+    utterance.onerror = finish;
     synth.speak(utterance);
   } catch (error) {
     console.warn('Speech failed', error);
+    finish();
   }
+}
+
+// ---------- Blinds-up song ("Blinds Rise" by gsrk_au, public/sounds/blinds-up.mp3) ----------
+
+const SONG_URL = '/sounds/blinds-up.mp3';
+let songBuffer: AudioBuffer | null = null;
+let songLoading: Promise<AudioBuffer | null> | null = null;
+let songSource: AudioBufferSourceNode | null = null;
+
+/** Download and decode the song once, so it can start instantly (and without a tap) later. */
+export function preloadSong() {
+  const audio = getContext();
+  if (!audio) return Promise.resolve(null);
+  if (songBuffer) return Promise.resolve(songBuffer);
+  if (!songLoading) {
+    songLoading = fetch(SONG_URL)
+      .then((res) => res.arrayBuffer())
+      .then((data) => audio.decodeAudioData(data))
+      .then((buffer) => (songBuffer = buffer))
+      .catch((error) => {
+        console.warn('Song failed to load', error);
+        songLoading = null;
+        return null;
+      });
+  }
+  return songLoading;
+}
+
+/** Play the blinds-up song; falls back to the fanfare if it can't be loaded. */
+export async function playSong() {
+  const audio = getContext();
+  if (!audio) return;
+  if (audio.state !== 'running') void audio.resume();
+  const buffer = await preloadSong();
+  if (!buffer) {
+    playSound('level');
+    return;
+  }
+  stopSong();
+  const source = audio.createBufferSource();
+  const gain = audio.createGain();
+  gain.gain.value = 0.9;
+  source.buffer = buffer;
+  source.connect(gain).connect(audio.destination);
+  source.onended = () => {
+    if (songSource === source) songSource = null;
+  };
+  source.start();
+  songSource = source;
+}
+
+export function stopSong() {
+  try {
+    songSource?.stop();
+  } catch {
+    // Already stopped.
+  }
+  songSource = null;
 }
 
 export function vibrate(pattern: number[]) {

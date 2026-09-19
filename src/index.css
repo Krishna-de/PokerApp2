@@ -1865,9 +1865,57 @@ button.standing-row:active {
   font-weight: 800;
 }
 
+.other-minutes {
+  margin: 8px 0 0;
+}
+
+.minutes-stepper {
+  display: grid;
+  grid-template-columns: 56px 1fr 56px;
+  align-items: center;
+  gap: 10px;
+}
+
+.stepper-btn {
+  display: grid;
+  place-items: center;
+  height: 56px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+
+.stepper-btn:active:not(:disabled) {
+  transform: scale(0.95);
+  border-color: var(--accent);
+}
+
+.stepper-btn:disabled {
+  opacity: 0.35;
+}
+
+.stepper-value {
+  display: grid;
+  justify-items: center;
+  line-height: 1.1;
+}
+
+.stepper-value strong {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--gold);
+}
+
+.stepper-value span {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .minute-chips {
   display: grid;
-  grid-template-columns: repeat(4, 1fr) 1.4fr;
+  grid-template-columns: repeat(4, 1fr) 1.3fr;
   gap: 6px;
 }
 
@@ -2364,6 +2412,42 @@ button.standing-row:active {
   align-items: center;
   gap: 8px;
   font-weight: 800;
+}
+
+.places-bar {
+  display: grid;
+  grid-template-columns: 52px 1fr 52px;
+  align-items: center;
+  gap: 8px;
+}
+
+.places-bar .btn {
+  font-size: 1.3rem;
+  padding: 0;
+}
+
+.places-count {
+  text-align: center;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.places-count strong {
+  color: var(--text);
+  font-size: 1.2rem;
+}
+
+.reset-split {
+  min-height: 38px;
+  margin: 6px 0 10px;
+  font-size: 0.8rem;
+}
+
+.payout-pct {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .remaining-box {
