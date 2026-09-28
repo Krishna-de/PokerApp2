@@ -3,7 +3,7 @@ import { SPLITWISE_GROUP_ID, SPLITWISE_PLAYER_IDS } from '../config/splitwise';
 import { fmt } from '../utils/format';
 import {
   SPLITWISE_URL,
-  SplitwiseAuthError,
+SplitwiseAuthError,
   clearSplitwiseSession,
   connectSplitwise,
   createSplitwiseExpense,
@@ -11,6 +11,8 @@ import {
   fetchSplitwiseMe,
   getSplitwiseSession,
   takeSplitwiseLoginError,
+  createSplitwiseExpense,
+  fetchSplitwiseGroups,
   guessMember,
   settleUp,
   splitwiseApiEnabled,
@@ -25,7 +27,7 @@ type Props = {
   title: string;
   rows: SplitwiseRow[];
   onMessage: (message: string) => void;
-  /** Unlocked room admin AND in SPLITWISE_ADDERS (src/config/splitwise.ts). */
+  /** Admin only: may create the Splitwise expense. */
   canAdd?: boolean;
   added?: Added;
   onAdded?: (info: { expenseId: number; groupName: string }) => void | Promise<void>;
@@ -66,51 +68,7 @@ export default function SplitwiseCard({ title, rows, onMessage, canAdd, added, o
   const [memberFor, setMemberFor] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  // Splitwise account this device is connected to: '' = not connected, null = checking.
-  const [me, setMe] = useState<string | null>(null);
   const group = groups?.find((g) => g.id === groupId);
-  const showAdd = splitwiseApiEnabled && canAdd && !added;
-
-  useEffect(() => {
-    if (!showAdd) return;
-    const loginError = takeSplitwiseLoginError();
-    if (loginError)
-      setError(
-        loginError === 'access_denied' || loginError === 'cancelled'
-          ? 'Splitwise login cancelled.'
-          : 'Splitwise login failed — try again.',
-      );
-    if (!getSplitwiseSession()) {
-      setMe('');
-      return;
-    }
-    let live = true;
-    fetchSplitwiseMe()
-      .then((name) => live && setMe(name))
-      .catch((e) => {
-        if (!live) return;
-        setMe(e instanceof SplitwiseAuthError ? '' : 'your Splitwise account');
-        if (!(e instanceof SplitwiseAuthError)) setError(e instanceof Error ? e.message : 'Could not reach Splitwise.');
-      });
-    return () => {
-      live = false;
-    };
-  }, [showAdd]);
-
-  function fail(e: unknown, fallback: string) {
-    if (e instanceof SplitwiseAuthError) {
-      setMe('');
-      setGroups(null);
-    }
-    setError(e instanceof Error ? e.message : fallback);
-  }
-
-  function disconnect() {
-    clearSplitwiseSession();
-    setMe('');
-    setGroups(null);
-    setError('');
-  }
 
   function pickGroup(id: number, list = groups ?? []) {
     setGroupId(id);
@@ -139,7 +97,7 @@ export default function SplitwiseCard({ title, rows, onMessage, canAdd, added, o
       if (!list.length) {
         setError(
           SPLITWISE_GROUP_ID
-            ? `Your Splitwise account isn't in group ${SPLITWISE_GROUP_ID} (src/config/splitwise.ts).`
+? `Your Splitwise account isn't in group ${SPLITWISE_GROUP_ID} (src/config/splitwise.ts).`
             : 'No Splitwise groups found in your account.',
         );
         return;
@@ -148,7 +106,7 @@ export default function SplitwiseCard({ title, rows, onMessage, canAdd, added, o
       const last = load<number>(GROUP_KEY, 0);
       pickGroup(list.some((g) => g.id === last) ? last : list[0].id, list);
     } catch (e) {
-      fail(e, 'Could not reach Splitwise.');
+fail(e, 'Could not reach Splitwise.');
     } finally {
       setBusy(false);
     }
@@ -170,7 +128,7 @@ export default function SplitwiseCard({ title, rows, onMessage, canAdd, added, o
       setGroups(null);
       onMessage(`Added to Splitwise (${group.name}).`);
     } catch (e) {
-      fail(e, 'Could not add the expense.');
+fail(e, 'Could not add the expense.');
     } finally {
       setBusy(false);
     }
