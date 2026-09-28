@@ -8,17 +8,22 @@
  * The group ID is also the number in the web address: secure.splitwise.com/#/groups/12345678
  */
 
-/**
- * Splitwise group the expense goes to. When set, ONLY this group is used (no picker) and
- * "Open Splitwise" opens it. 0 = pick any of the API key owner's groups in the app.
- */
-export const SPLITWISE_GROUP_ID = 0;
+/** Splitwise group the expense goes to. 0 = pick in the app. */
+export const SPLITWISE_GROUP_ID = 66133405;
 
 /**
  * Poker player name (as typed in the app, any case) → Splitwise user ID.
  * Players not listed are matched by name, or picked in the app.
  */
 export const SPLITWISE_PLAYER_IDS: Record<string, number> = {
-  // 'Sai': 12345678,
-  // 'Krishna': 23456789,
+  'Adi': 12345678,
+'Arjun': 5715038,
+  'Krishna': 23456789,
+'Bharath': 11361892,
+'BhuvR': 1653336,
+'Chakri': 2937237,
+'Jacky': 53182812,
+'Naresh': 987578,
+'Reddy': 101082930,
+'Rohith': 14798476
 };
