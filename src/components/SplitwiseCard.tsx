@@ -1,15 +1,113 @@
+import { useState } from 'react';
 import { fmt } from '../utils/format';
-import { SPLITWISE_URL, settleUp, splitwiseText, type SplitwiseRow } from '../utils/splitwise';
+import {
+  SPLITWISE_URL,
+  createSplitwiseExpense,
+  fetchSplitwiseGroups,
+  guessMember,
+  settleUp,
+  splitwiseApiEnabled,
+  splitwiseText,
+  type SplitwiseGroup,
+  type SplitwiseRow,
+} from '../utils/splitwise';
+
+type Added = { expenseId: number; groupName: string; addedBy: string };
 
 type Props = {
   title: string;
   rows: SplitwiseRow[];
   onMessage: (message: string) => void;
+  /** Admin only: may create the Splitwise expense. */
+  canAdd?: boolean;
+  added?: Added;
+  onAdded?: (info: { expenseId: number; groupName: string }) => void | Promise<void>;
 };
 
+const GROUP_KEY = 'poker.splitwiseGroup';
+const MAP_KEY = 'poker.splitwiseMembers';
+
+function load<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function save(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage blocked — the picks just aren't remembered.
+  }
+}
+
+const nameKey = (name: string) => name.trim().toLowerCase();
+
 /** Results-page card: spent / earned / net per player, settle-up list, copy/share for Splitwise. */
-export default function SplitwiseCard({ title, rows, onMessage }: Props) {
+export default function SplitwiseCard({ title, rows, onMessage, canAdd, added, onAdded }: Props) {
   const transfers = settleUp(rows);
+  const [groups, setGroups] = useState<SplitwiseGroup[] | null>(null);
+  const [groupId, setGroupId] = useState<number>(0);
+  const [memberFor, setMemberFor] = useState<Record<string, number>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const group = groups?.find((g) => g.id === groupId);
+
+  function pickGroup(id: number, list = groups ?? []) {
+    setGroupId(id);
+    const g = list.find((x) => x.id === id);
+    if (!g) return;
+    // Remembered pick for this name (if still in the group), else a name match.
+    const remembered = load<Record<string, number>>(MAP_KEY, {});
+    const next: Record<string, number> = {};
+    rows.forEach((r) => {
+      const saved = remembered[nameKey(r.name)];
+      const id2 = saved && g.members.some((m) => m.id === saved) ? saved : guessMember(r.name, g.members);
+      if (id2) next[r.id] = id2;
+    });
+    setMemberFor(next);
+  }
+
+  async function openAdd() {
+    setBusy(true);
+    setError('');
+    try {
+      const list = await fetchSplitwiseGroups();
+      setGroups(list);
+      const last = load<number>(GROUP_KEY, 0);
+      pickGroup(list.some((g) => g.id === last) ? last : list[0]?.id ?? 0, list);
+      if (!list.length) setError('No Splitwise groups found for this API key.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not reach Splitwise.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const allMapped = rows.every((r) => memberFor[r.id]);
+
+  async function addExpense() {
+    if (!group || !allMapped || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const expenseId = await createSplitwiseExpense({ groupId: group.id, title, rows, memberFor });
+      save(GROUP_KEY, group.id);
+      const remembered = load<Record<string, number>>(MAP_KEY, {});
+      rows.forEach((r) => (remembered[nameKey(r.name)] = memberFor[r.id]));
+      save(MAP_KEY, remembered);
+      await onAdded?.({ expenseId, groupName: group.name });
+      setGroups(null);
+      onMessage(`Added to Splitwise (${group.name}).`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not add the expense.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function copy() {
     try {
@@ -63,6 +161,59 @@ export default function SplitwiseCard({ title, rows, onMessage }: Props) {
           ))}
         </div>
       )}
+      {added ? (
+        <div className="note-box splitwise-added">
+          ✓ Added to Splitwise ({added.groupName}) by {added.addedBy}
+        </div>
+      ) : (
+        splitwiseApiEnabled &&
+        canAdd &&
+        (groups ? (
+          <div className="splitwise-add">
+            <label className="tiny muted" htmlFor="sw-group">
+              Splitwise group
+            </label>
+            <select id="sw-group" value={groupId} onChange={(e) => pickGroup(Number(e.target.value))}>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+            {group &&
+              rows.map((r) => (
+                <div className="splitwise-map" key={r.id}>
+                  <span className="splitwise-name">{r.name}</span>
+                  <select
+                    aria-label={`Splitwise person for ${r.name}`}
+                    value={memberFor[r.id] ?? ''}
+                    onChange={(e) => setMemberFor((prev) => ({ ...prev, [r.id]: Number(e.target.value) }))}
+                  >
+                    <option value="">Pick…</option>
+                    {group.members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            <div className="splitwise-actions two">
+              <button className="btn btn-dark" onClick={() => setGroups(null)} disabled={busy}>
+                Cancel
+              </button>
+              <button className="btn btn-green" onClick={addExpense} disabled={busy || !allMapped}>
+                {busy ? 'Adding…' : 'Create expense'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button className="btn btn-green btn-block splitwise-add-btn" onClick={openAdd} disabled={busy}>
+            {busy ? 'Loading groups…' : 'Add to Splitwise'}
+          </button>
+        ))
+      )}
+      {error && <div className="note-box error splitwise-error">{error}</div>}
       <div className="splitwise-actions">
         <button className="btn btn-dark" onClick={copy}>
           Copy
