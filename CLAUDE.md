@@ -84,6 +84,11 @@ Existing lint errors (`any` in auth handlers) predate this work.
   ("Clock paused." / "Clock resumed."), vibration, and a notification when the app is in the background.
   Song mode: NO countdown and NO blind amounts — just "Time is up! Time is up!" then the song.
   Fanfare mode: countdown 5-4-3-2-1 → "Time is up! … Blinds are now X, Y." → fanfare.
+- **Splitwise** (`src/utils/splitwise.ts`, card on the results page): one expense settles the game —
+  *Paid by multiple people* = Earned (prize + bounties won), *Split unequally* = Spent (buy-ins + bounties lost),
+  so Splitwise balance = net. Shows a Spent/Earned/Net table, fewest "X → Y" settle-up transfers, and Copy / Share /
+  Open Splitwise. No direct API call: Splitwise has no browser CORS and OAuth needs a secret, so it would need a
+  Cloud Function (Blaze plan).
 - **Admin**: PIN per room in `roomPins/{id}` (NOT in the public room). Admin stays unlocked across refresh
   when `room.currentAdmin.uid === me`; locks if someone else takes admin.
 - **Spectators**: `rooms` is publicly readable; guests watch read-only without an account.
