@@ -1,5 +1,21 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+
+// The dev proxy acts as the key owner, and `--host` makes it reachable on the Wi-Fi,
+// so only the two calls the app makes are let through (no deletes, no other endpoints).
+const SPLITWISE_ALLOWED = new Set(['GET /splitwise-api/get_groups', 'POST /splitwise-api/create_expense'])
+
+const splitwiseGuard = (): Plugin => ({
+  name: 'splitwise-guard',
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      const path = (req.url ?? '').split('?')[0]
+      if (!path.startsWith('/splitwise-api') || SPLITWISE_ALLOWED.has(`${req.method} ${path}`)) return next()
+      res.statusCode = 403
+      res.end('Blocked: only get_groups and create_expense are allowed')
+    })
+  },
+})
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command, mode }) => {
@@ -10,7 +26,7 @@ export default defineConfig(({ command, mode }) => {
   const splitwiseKey = command === 'serve' ? env.SPLITWISE_API_KEY?.trim() : ''
 
   return {
-    plugins: [react()],
+    plugins: [react(), splitwiseGuard()],
     optimizeDeps: {
       exclude: ['lucide-react'],
     },
