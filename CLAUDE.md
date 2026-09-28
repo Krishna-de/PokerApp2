@@ -87,8 +87,11 @@ Existing lint errors (`any` in auth handlers) predate this work.
 - **Splitwise** (`src/utils/splitwise.ts`, card on the results page): one expense settles the game —
   *Paid by multiple people* = Earned (prize + bounties won), *Split unequally* = Spent (buy-ins + bounties lost),
   so Splitwise balance = net. Shows a Spent/Earned/Net table, fewest "X → Y" settle-up transfers, and Copy / Share /
-  Open Splitwise. No direct API call: Splitwise has no browser CORS and OAuth needs a secret, so it would need a
-  Cloud Function (Blaze plan).
+  Open Splitwise. **Add to Splitwise** (admin) only under `npm run dev` with `SPLITWISE_API_KEY` in `.env`: the Vite
+  dev proxy `/splitwise-api` → `secure.splitwise.com/api/v3.0` adds the key (no `VITE_` prefix, never bundled;
+  `__SPLITWISE_PROXY__` flag). Pick group + map each player to a member (name guess, remembered in localStorage),
+  creates one EUR expense, stores `room.splitwise` so it isn't added twice. The live site has no proxy — a real
+  one needs a Cloud Function (Blaze plan); never put the key in a `VITE_` variable.
 - **Admin**: PIN per room in `roomPins/{id}` (NOT in the public room). Admin stays unlocked across refresh
   when `room.currentAdmin.uid === me`; locks if someone else takes admin.
 - **Spectators**: `rooms` is publicly readable; guests watch read-only without an account.
