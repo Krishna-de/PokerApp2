@@ -1,16 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { SPLITWISE_GROUP_ID, SPLITWISE_PLAYER_IDS } from '../config/splitwise';
 import { fmt } from '../utils/format';
 import {
   SPLITWISE_URL,
-SplitwiseAuthError,
-  clearSplitwiseSession,
-  connectSplitwise,
-  createSplitwiseExpense,
-  fetchSplitwiseGroups,
-  fetchSplitwiseMe,
-  getSplitwiseSession,
-  takeSplitwiseLoginError,
   createSplitwiseExpense,
   fetchSplitwiseGroups,
   guessMember,
@@ -97,8 +89,8 @@ export default function SplitwiseCard({ title, rows, onMessage, canAdd, added, o
       if (!list.length) {
         setError(
           SPLITWISE_GROUP_ID
-? `Your Splitwise account isn't in group ${SPLITWISE_GROUP_ID} (src/config/splitwise.ts).`
-            : 'No Splitwise groups found in your account.',
+            ? `This API key can't see Splitwise group ${SPLITWISE_GROUP_ID} (src/config/splitwise.ts).`
+            : 'No Splitwise groups found for this API key.',
         );
         return;
       }
@@ -106,7 +98,7 @@ export default function SplitwiseCard({ title, rows, onMessage, canAdd, added, o
       const last = load<number>(GROUP_KEY, 0);
       pickGroup(list.some((g) => g.id === last) ? last : list[0].id, list);
     } catch (e) {
-fail(e, 'Could not reach Splitwise.');
+      setError(e instanceof Error ? e.message : 'Could not reach Splitwise.');
     } finally {
       setBusy(false);
     }
@@ -128,7 +120,7 @@ fail(e, 'Could not reach Splitwise.');
       setGroups(null);
       onMessage(`Added to Splitwise (${group.name}).`);
     } catch (e) {
-fail(e, 'Could not add the expense.');
+      setError(e instanceof Error ? e.message : 'Could not add the expense.');
     } finally {
       setBusy(false);
     }
@@ -150,78 +142,6 @@ fail(e, 'Could not add the expense.');
     } catch {
       /* user cancelled */
     }
-  }
-
-  function renderAdd() {
-    if (me === null) return <div className="tiny muted splitwise-me">Checking Splitwise…</div>;
-    if (me === '') {
-      return (
-        <button className="btn btn-green btn-block splitwise-add-btn" onClick={connectSplitwise}>
-          Connect Splitwise
-        </button>
-      );
-    }
-    if (!groups) {
-      return (
-        <>
-          <button className="btn btn-green btn-block splitwise-add-btn" onClick={openAdd} disabled={busy}>
-            {busy ? 'Loading groups…' : 'Add to Splitwise'}
-          </button>
-          <div className="tiny muted splitwise-me">
-            Connected as {me} ·{' '}
-            <button className="link-btn" onClick={disconnect}>
-              Disconnect
-            </button>
-          </div>
-        </>
-      );
-    }
-    return (
-      <div className="splitwise-add">
-        <label className="tiny muted" htmlFor="sw-group">
-          Splitwise group
-        </label>
-        {groups.length === 1 ? (
-          <div className="splitwise-group" id="sw-group">
-            {groups[0].name}
-          </div>
-        ) : (
-          <select id="sw-group" value={groupId} onChange={(e) => pickGroup(Number(e.target.value))}>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-        )}
-        {group &&
-          rows.map((r) => (
-            <div className="splitwise-map" key={r.id}>
-              <span className="splitwise-name">{r.name}</span>
-              <select
-                aria-label={`Splitwise person for ${r.name}`}
-                value={memberFor[r.id] ?? ''}
-                onChange={(e) => setMemberFor((prev) => ({ ...prev, [r.id]: Number(e.target.value) }))}
-              >
-                <option value="">Pick…</option>
-                {group.members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ))}
-        <div className="splitwise-actions two">
-          <button className="btn btn-dark" onClick={() => setGroups(null)} disabled={busy}>
-            Cancel
-          </button>
-          <button className="btn btn-green" onClick={addExpense} disabled={busy || !allMapped}>
-            {busy ? 'Adding…' : 'Create expense'}
-          </button>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -263,7 +183,58 @@ fail(e, 'Could not add the expense.');
           ✓ Added to Splitwise ({added.groupName}) by {added.addedBy}
         </div>
       ) : (
-        showAdd && renderAdd()
+        splitwiseApiEnabled &&
+        canAdd &&
+        (groups ? (
+          <div className="splitwise-add">
+            <label className="tiny muted" htmlFor="sw-group">
+              Splitwise group
+            </label>
+            {groups.length === 1 ? (
+              <div className="splitwise-group" id="sw-group">
+                {groups[0].name}
+              </div>
+            ) : (
+              <select id="sw-group" value={groupId} onChange={(e) => pickGroup(Number(e.target.value))}>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {group &&
+              rows.map((r) => (
+                <div className="splitwise-map" key={r.id}>
+                  <span className="splitwise-name">{r.name}</span>
+                  <select
+                    aria-label={`Splitwise person for ${r.name}`}
+                    value={memberFor[r.id] ?? ''}
+                    onChange={(e) => setMemberFor((prev) => ({ ...prev, [r.id]: Number(e.target.value) }))}
+                  >
+                    <option value="">Pick…</option>
+                    {group.members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            <div className="splitwise-actions two">
+              <button className="btn btn-dark" onClick={() => setGroups(null)} disabled={busy}>
+                Cancel
+              </button>
+              <button className="btn btn-green" onClick={addExpense} disabled={busy || !allMapped}>
+                {busy ? 'Adding…' : 'Create expense'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button className="btn btn-green btn-block splitwise-add-btn" onClick={openAdd} disabled={busy}>
+            {busy ? 'Loading groups…' : 'Add to Splitwise'}
+          </button>
+        ))
       )}
       {error && <div className="note-box error splitwise-error">{error}</div>}
       <div className="splitwise-actions">

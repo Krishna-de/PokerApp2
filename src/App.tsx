@@ -64,7 +64,6 @@ import { useToneIndex } from './hooks/useTones';
 import { toneSound, toneUidOf } from './utils/tones';
 import ThemePicker from './components/ThemePicker';
 import { MAX_PLACES, PAYOUT_SPLITS, defaultPlaces, splitPool } from './utils/payouts';
-import { canAddToSplitwise, splitwiseRows } from './utils/splitwise';
 import { splitwiseRows } from './utils/splitwise';
 import SplitwiseCard from './components/SplitwiseCard';
 import { useAlertsPreference, useTournamentClock } from './hooks/useTournamentClock';
