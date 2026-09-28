@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SPLITWISE_GROUP_ID, SPLITWISE_PLAYER_IDS } from '../config/splitwise';
 import { fmt } from '../utils/format';
 import {
   SPLITWISE_URL,
@@ -44,7 +45,12 @@ function save(key: string, value: unknown) {
   }
 }
 
-const nameKey = (name: string) => name.trim().toLowerCase();
+const nameKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, ' ');
+
+/** Config IDs keyed the same way as player names. */
+const configIds: Record<string, number> = Object.fromEntries(
+  Object.entries(SPLITWISE_PLAYER_IDS).map(([name, id]) => [nameKey(name), id]),
+);
 
 /** Results-page card: spent / earned / net per player, settle-up list, copy/share for Splitwise. */
 export default function SplitwiseCard({ title, rows, onMessage, canAdd, added, onAdded }: Props) {
@@ -63,9 +69,11 @@ export default function SplitwiseCard({ title, rows, onMessage, canAdd, added, o
     // Remembered pick for this name (if still in the group), else a name match.
     const remembered = load<Record<string, number>>(MAP_KEY, {});
     const next: Record<string, number> = {};
+    const inGroup = (id?: number) => (id && g.members.some((m) => m.id === id) ? id : undefined);
+    // Order: src/config/splitwise.ts → last pick on this device → name match.
     rows.forEach((r) => {
-      const saved = remembered[nameKey(r.name)];
-      const id2 = saved && g.members.some((m) => m.id === saved) ? saved : guessMember(r.name, g.members);
+      const key = nameKey(r.name);
+      const id2 = inGroup(configIds[key]) ?? inGroup(remembered[key]) ?? guessMember(r.name, g.members);
       if (id2) next[r.id] = id2;
     });
     setMemberFor(next);
@@ -77,8 +85,11 @@ export default function SplitwiseCard({ title, rows, onMessage, canAdd, added, o
     try {
       const list = await fetchSplitwiseGroups();
       setGroups(list);
-      const last = load<number>(GROUP_KEY, 0);
-      pickGroup(list.some((g) => g.id === last) ? last : list[0]?.id ?? 0, list);
+      const preferred = [SPLITWISE_GROUP_ID, load<number>(GROUP_KEY, 0)].find((id) => list.some((g) => g.id === id));
+      pickGroup(preferred ?? list[0]?.id ?? 0, list);
+      if (SPLITWISE_GROUP_ID && preferred !== SPLITWISE_GROUP_ID) {
+        setError(`Group ${SPLITWISE_GROUP_ID} from src/config/splitwise.ts isn't in this key's groups — pick one.`);
+      }
       if (!list.length) setError('No Splitwise groups found for this API key.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not reach Splitwise.');
