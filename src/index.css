@@ -2713,3 +2713,11 @@ button.standing-row:active {
 .splitwise-actions.two {
   grid-template-columns: 1fr 1.6fr;
 }
+
+.splitwise-group {
+  padding: 11px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--inset);
+  border: 1px solid var(--border);
+  font-weight: 700;
+}

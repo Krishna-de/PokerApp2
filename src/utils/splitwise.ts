@@ -1,3 +1,4 @@
+import { SPLITWISE_GROUP_ID } from '../config/splitwise';
 import { fmt } from './format';
 
 /**
@@ -99,7 +100,10 @@ export function splitwiseText(title: string, date: Date, rows: SplitwiseRow[]): 
   return lines.join('\n');
 }
 
-export const SPLITWISE_URL = 'https://secure.splitwise.com/#/dashboard';
+/** "Open Splitwise": the configured group, else the dashboard. */
+export const SPLITWISE_URL = SPLITWISE_GROUP_ID
+  ? `https://secure.splitwise.com/#/groups/${SPLITWISE_GROUP_ID}`
+  : 'https://secure.splitwise.com/#/dashboard';
 
 // ---------------------------------------------------------------------------
 // Direct "Add to Splitwise" — only under `npm run dev` with SPLITWISE_API_KEY
