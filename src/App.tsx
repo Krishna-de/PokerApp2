@@ -2035,7 +2035,7 @@ async function closeBuyins() {
               title={room?.title ?? ''}
               rows={splitRows}
               onMessage={setAdminMessage}
-              canAdd={canAddToSplitwise(identity?.displayName)}
+              canAdd={isAdminUnlocked && canAddToSplitwise(identity?.displayName)}
               added={room?.splitwise}
               onAdded={({ expenseId, groupName }) =>
                 patchRoom({

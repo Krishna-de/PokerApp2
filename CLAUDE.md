@@ -93,7 +93,7 @@ Existing lint errors (`any` in auth handlers) predate this work.
   `__SPLITWISE_PROXY__` flag). Pick group + map each player to a member (name guess, remembered in localStorage),
   group + player IDs can be fixed in `src/config/splitwise.ts` (a group ID locks it to that one group and
   "Open Splitwise" opens it; players: config → last pick → name match);
-  only users named in `SPLITWISE_ADDERS` (config) see the button (UI gate, not security);
+  only when the unlocked room admin is named in `SPLITWISE_ADDERS` (config) (UI gate, not security);
   creates one EUR expense, stores `room.splitwise` so it isn't added twice. The live site has no proxy — a real
   one needs a Cloud Function (Blaze plan); never put the key in a `VITE_` variable.
 - **Admin**: PIN per room in `roomPins/{id}` (NOT in the public room). Admin stays unlocked across refresh
