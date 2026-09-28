@@ -83,14 +83,20 @@ export default function SplitwiseCard({ title, rows, onMessage, canAdd, added, o
     setBusy(true);
     setError('');
     try {
-      const list = await fetchSplitwiseGroups();
-      setGroups(list);
-      const preferred = [SPLITWISE_GROUP_ID, load<number>(GROUP_KEY, 0)].find((id) => list.some((g) => g.id === id));
-      pickGroup(preferred ?? list[0]?.id ?? 0, list);
-      if (SPLITWISE_GROUP_ID && preferred !== SPLITWISE_GROUP_ID) {
-        setError(`Group ${SPLITWISE_GROUP_ID} from src/config/splitwise.ts isn't in this key's groups — pick one.`);
+      const all = await fetchSplitwiseGroups();
+      // A group ID in src/config/splitwise.ts locks the expense to that one group.
+      const list = SPLITWISE_GROUP_ID ? all.filter((g) => g.id === SPLITWISE_GROUP_ID) : all;
+      if (!list.length) {
+        setError(
+          SPLITWISE_GROUP_ID
+            ? `This API key can't see Splitwise group ${SPLITWISE_GROUP_ID} (src/config/splitwise.ts).`
+            : 'No Splitwise groups found for this API key.',
+        );
+        return;
       }
-      if (!list.length) setError('No Splitwise groups found for this API key.');
+      setGroups(list);
+      const last = load<number>(GROUP_KEY, 0);
+      pickGroup(list.some((g) => g.id === last) ? last : list[0].id, list);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not reach Splitwise.');
     } finally {
@@ -184,13 +190,19 @@ export default function SplitwiseCard({ title, rows, onMessage, canAdd, added, o
             <label className="tiny muted" htmlFor="sw-group">
               Splitwise group
             </label>
-            <select id="sw-group" value={groupId} onChange={(e) => pickGroup(Number(e.target.value))}>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
+            {groups.length === 1 ? (
+              <div className="splitwise-group" id="sw-group">
+                {groups[0].name}
+              </div>
+            ) : (
+              <select id="sw-group" value={groupId} onChange={(e) => pickGroup(Number(e.target.value))}>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            )}
             {group &&
               rows.map((r) => (
                 <div className="splitwise-map" key={r.id}>
