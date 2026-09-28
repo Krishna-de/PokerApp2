@@ -16,14 +16,5 @@ export const SPLITWISE_GROUP_ID = 66133405;
  * Players not listed are matched by name, or picked in the app.
  */
 export const SPLITWISE_PLAYER_IDS: Record<string, number> = {
-  'Adi': 12345678,
-'Arjun': 5715038,
-  'Krishna': 23456789,
-'Bharath': 11361892,
-'BhuvR': 1653336,
-'Chakri': 2937237,
-'Jacky': 53182812,
-'Naresh': 987578,
-'Reddy': 101082930,
-'Rohith': 14798476
+  
 };
