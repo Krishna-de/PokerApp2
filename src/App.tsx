@@ -59,6 +59,7 @@ import BlindStructureEditor from './components/BlindStructureEditor';
 import NumberField from './components/NumberField';
 import MinutesPicker from './components/MinutesPicker';
 import ToneUploader from './components/ToneUploader';
+import VersionTag from './components/VersionTag';
 import { useToneIndex } from './hooks/useTones';
 import { toneSound, toneUidOf } from './utils/tones';
 import ThemePicker from './components/ThemePicker';
@@ -1493,6 +1494,7 @@ async function closeBuyins() {
             </p>
             {authMessage && <div className="note-box">{authMessage}</div>}
           </section>
+          <VersionTag />
 
           {roomId && (
             <button className="btn btn-ghost btn-block" onClick={() => setShowLogin(false)}>
@@ -1600,6 +1602,7 @@ async function closeBuyins() {
                 <div className="section-title">Theme</div>
                 <ThemePicker />
               </section>
+              <VersionTag />
             </>
           )}
         </main>
@@ -2272,6 +2275,8 @@ async function closeBuyins() {
               </div>
             </section>
             )}
+
+            <VersionTag />
           </>
         )}
       </main>
