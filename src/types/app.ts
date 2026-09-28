@@ -149,6 +149,8 @@ export type RoomState = {
   fifthPlayerId?: string;
   sixthPlayerId?: string;
 };
+  /** Set once the results were added to Splitwise, so nobody adds them twice. */
+  splitwise?: { expenseId: number; groupName: string; addedBy: string; addedAt: number };
 };
 
 export type UndoState = {

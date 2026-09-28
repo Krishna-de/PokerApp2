@@ -63,6 +63,8 @@ import { useToneIndex } from './hooks/useTones';
 import { toneSound, toneUidOf } from './utils/tones';
 import ThemePicker from './components/ThemePicker';
 import { MAX_PLACES, PAYOUT_SPLITS, defaultPlaces, splitPool } from './utils/payouts';
+import { splitwiseRows } from './utils/splitwise';
+import SplitwiseCard from './components/SplitwiseCard';
 import { useAlertsPreference, useTournamentClock } from './hooks/useTournamentClock';
 import { useLiveRooms } from './hooks/useLiveRooms';
 import { blindsLabel, chips, computeClock, formatClock, levelIndexForNumber, normalizeLevels, rememberMinutes } from './utils/blinds';
@@ -445,6 +447,14 @@ const finalStandings =
     : sortedForEnd;
   const distributed = PAYOUT_KEYS.slice(0, payoutMode).reduce((sum, key) => sum + (Number(payouts[key]) || 0), 0);
   const remaining = prizePool - distributed;
+
+  // Spent / earned per player for the Splitwise expense (results page).
+  const splitRows = splitwiseRows(finalStandings, buyIn, (id) => {
+    const index = finalStandings.findIndex((p) => p.id === id);
+    const key = payoutKeyForIndex(index);
+    return key && index < payoutMode ? Number(payouts[key]) || 0 : 0;
+  });
+
   const shareLink = roomId ? `${window.location.origin}${window.location.pathname}#room=${roomId}` : '';
   const selectedRegisteredUsers = registeredUsers.filter((user) => selectedRegisteredUserIds.includes(user.uid));
 
@@ -2020,6 +2030,19 @@ async function closeBuyins() {
                 })}
               </div>
             </section>
+
+            <SplitwiseCard
+              title={room?.title ?? ''}
+              rows={splitRows}
+              onMessage={setAdminMessage}
+              canAdd={isAdminUnlocked}
+              added={room?.splitwise}
+              onAdded={({ expenseId, groupName }) =>
+                patchRoom({
+                  splitwise: { expenseId, groupName, addedBy: identity?.displayName ?? 'admin', addedAt: Date.now() },
+                })
+              }
+            />
 
             <button className="btn btn-green btn-block btn-lg" onClick={createFreshRoomFromCurrent}>
               Rematch with same players

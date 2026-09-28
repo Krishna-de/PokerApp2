@@ -2629,3 +2629,95 @@ button.standing-row:active {
     transition: none !important;
   }
 }
+
+/* Splitwise export (results page) */
+.splitwise-help {
+  margin: 4px 0 8px;
+}
+
+.splitwise-table {
+  display: grid;
+  gap: 2px;
+  font-size: 0.8rem;
+}
+
+.splitwise-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--inset);
+  text-align: right;
+}
+
+.splitwise-row > :first-child {
+  text-align: left;
+}
+
+.splitwise-row.head {
+  background: none;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.splitwise-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.splitwise-transfers {
+  display: grid;
+  gap: 2px;
+  margin-top: 10px;
+}
+
+.splitwise-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.splitwise-actions .btn {
+  text-decoration: none;
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.splitwise-add-btn,
+.splitwise-added,
+.splitwise-error {
+  margin-top: 10px;
+}
+
+.splitwise-add {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.splitwise-map {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.splitwise-actions.two {
+  grid-template-columns: 1fr 1.6fr;
+}
+
+.splitwise-group {
+  padding: 11px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--inset);
+  border: 1px solid var(--border);
+  font-weight: 700;
+}
