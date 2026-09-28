@@ -8,7 +8,10 @@
  * The group ID is also the number in the web address: secure.splitwise.com/#/groups/12345678
  */
 
-/** Splitwise group the expense goes to. 0 = pick in the app. */
+/**
+ * Splitwise group the expense goes to. When set, ONLY this group is used (no picker) and
+ * "Open Splitwise" opens it. 0 = pick any of the API key owner's groups in the app.
+ */
 export const SPLITWISE_GROUP_ID = 0;
 
 /**
