@@ -90,6 +90,7 @@ Existing lint errors (`any` in auth handlers) predate this work.
   Open Splitwise. **Add to Splitwise** (admin) only under `npm run dev` with `SPLITWISE_API_KEY` in `.env`: the Vite
   dev proxy `/splitwise-api` → `secure.splitwise.com/api/v3.0` adds the key (no `VITE_` prefix, never bundled;
   `__SPLITWISE_PROXY__` flag). Pick group + map each player to a member (name guess, remembered in localStorage),
+  group + player IDs can be fixed in `src/config/splitwise.ts` (config → last pick → name match);
   creates one EUR expense, stores `room.splitwise` so it isn't added twice. The live site has no proxy — a real
   one needs a Cloud Function (Blaze plan); never put the key in a `VITE_` variable.
 - **Admin**: PIN per room in `roomPins/{id}` (NOT in the public room). Admin stays unlocked across refresh
