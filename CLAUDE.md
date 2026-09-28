@@ -87,12 +87,13 @@ Existing lint errors (`any` in auth handlers) predate this work.
 - **Splitwise** (`src/utils/splitwise.ts`, card on the results page): one expense settles the game —
   *Paid by multiple people* = Earned (prize + bounties won), *Split unequally* = Spent (buy-ins + bounties lost),
   so Splitwise balance = net. Shows a Spent/Earned/Net table, fewest "X → Y" settle-up transfers, and Copy / Share /
-  Open Splitwise. **Add to Splitwise** (admin) only under `npm run dev` with `SPLITWISE_API_KEY` in `.env`: the Vite
+  Open Splitwise. **Add to Splitwise** only under `npm run dev` with `SPLITWISE_API_KEY` in `.env`: the Vite
   dev proxy `/splitwise-api` → `secure.splitwise.com/api/v3.0` adds the key (no `VITE_` prefix, never bundled;
   only `GET get_groups` + `POST create_expense` pass — `splitwiseGuard` in vite.config.ts, since `--host` exposes it;
   `__SPLITWISE_PROXY__` flag). Pick group + map each player to a member (name guess, remembered in localStorage),
   group + player IDs can be fixed in `src/config/splitwise.ts` (a group ID locks it to that one group and
   "Open Splitwise" opens it; players: config → last pick → name match);
+  only users named in `SPLITWISE_ADDERS` (config) see the button (UI gate, not security);
   creates one EUR expense, stores `room.splitwise` so it isn't added twice. The live site has no proxy — a real
   one needs a Cloud Function (Blaze plan); never put the key in a `VITE_` variable.
 - **Admin**: PIN per room in `roomPins/{id}` (NOT in the public room). Admin stays unlocked across refresh

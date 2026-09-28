@@ -22,3 +22,9 @@ export const SPLITWISE_PLAYER_IDS: Record<string, number> = {
   // 'Sai': 12345678,
   // 'Krishna': 23456789,
 };
+
+/**
+ * Only these logged-in users (app display name, any case) see "Add to Splitwise".
+ * Empty = nobody. Everyone still sees the table and Copy / Share.
+ */
+export const SPLITWISE_ADDERS: string[] = ['Adi', 'Bharath', 'Naresh', 'Sai', 'BhuvR'];
