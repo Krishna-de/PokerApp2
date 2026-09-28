@@ -63,6 +63,7 @@ import { useToneIndex } from './hooks/useTones';
 import { toneSound, toneUidOf } from './utils/tones';
 import ThemePicker from './components/ThemePicker';
 import { MAX_PLACES, PAYOUT_SPLITS, defaultPlaces, splitPool } from './utils/payouts';
+import { SPLITWISE_URL, settleUp, splitwiseRows, splitwiseText } from './utils/splitwise';
 import { useAlertsPreference, useTournamentClock } from './hooks/useTournamentClock';
 import { useLiveRooms } from './hooks/useLiveRooms';
 import { blindsLabel, chips, computeClock, formatClock, levelIndexForNumber, normalizeLevels, rememberMinutes } from './utils/blinds';
@@ -445,6 +446,39 @@ const finalStandings =
     : sortedForEnd;
   const distributed = PAYOUT_KEYS.slice(0, payoutMode).reduce((sum, key) => sum + (Number(payouts[key]) || 0), 0);
   const remaining = prizePool - distributed;
+
+  // Spent / earned per player for the Splitwise expense (results page).
+  const splitRows = splitwiseRows(finalStandings, buyIn, (id) => {
+    const index = finalStandings.findIndex((p) => p.id === id);
+    const key = payoutKeyForIndex(index);
+    return key && index < payoutMode ? Number(payouts[key]) || 0 : 0;
+  });
+  const splitTransfers = settleUp(splitRows);
+
+  async function copySplitwise() {
+    if (!room) return;
+    const text = splitwiseText(room.title, new Date(), splitRows);
+    try {
+      await navigator.clipboard.writeText(text);
+      setAdminMessage('Copied for Splitwise — paste it into the expense notes.');
+    } catch {
+      setAdminMessage('Could not copy — long-press the numbers instead.');
+    }
+  }
+
+  async function shareSplitwise() {
+    if (!room) return;
+    const text = splitwiseText(room.title, new Date(), splitRows);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `Poker: ${room.title}`, text });
+      } catch {
+        /* user cancelled */
+      }
+    } else {
+      await copySplitwise();
+    }
+  }
   const shareLink = roomId ? `${window.location.origin}${window.location.pathname}#room=${roomId}` : '';
   const selectedRegisteredUsers = registeredUsers.filter((user) => selectedRegisteredUserIds.includes(user.uid));
 
@@ -2018,6 +2052,52 @@ async function closeBuyins() {
                     </div>
                   );
                 })}
+              </div>
+            </section>
+
+            <section className="card">
+              <div className="section-title">Splitwise</div>
+              <p className="tiny muted splitwise-help">
+                Add one expense: <strong>Paid by multiple people</strong> = Earned, <strong>Split unequally</strong> = Spent.
+              </p>
+              <div className="splitwise-table">
+                <div className="splitwise-row head">
+                  <span>Player</span>
+                  <span>Spent</span>
+                  <span>Earned</span>
+                  <span>Net</span>
+                </div>
+                {splitRows.map((r) => (
+                  <div className="splitwise-row" key={r.id}>
+                    <span className="splitwise-name">{r.name}</span>
+                    <span>€{fmt(r.spent)}</span>
+                    <span>€{fmt(r.earned)}</span>
+                    <strong className={r.net > 0 ? 'plus' : r.net < 0 ? 'minus' : ''}>
+                      {r.net > 0 ? '+' : r.net < 0 ? '−' : ''}€{fmt(Math.abs(r.net))}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+              {splitTransfers.length > 0 && (
+                <div className="splitwise-transfers">
+                  <div className="tiny muted">Settle up</div>
+                  {splitTransfers.map((t, i) => (
+                    <div className="tiny" key={i}>
+                      {t.from} → {t.to} <strong>€{fmt(t.amount)}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="splitwise-actions">
+                <button className="btn btn-dark" onClick={copySplitwise}>
+                  Copy
+                </button>
+                <button className="btn btn-dark" onClick={shareSplitwise}>
+                  Share
+                </button>
+                <a className="btn btn-dark" href={SPLITWISE_URL} target="_blank" rel="noreferrer">
+                  Open Splitwise
+                </a>
               </div>
             </section>
 
