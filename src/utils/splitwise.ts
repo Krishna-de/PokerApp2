@@ -100,3 +100,88 @@ export function splitwiseText(title: string, date: Date, rows: SplitwiseRow[]): 
 }
 
 export const SPLITWISE_URL = 'https://secure.splitwise.com/#/dashboard';
+
+// ---------------------------------------------------------------------------
+// Direct "Add to Splitwise" — only under `npm run dev` with SPLITWISE_API_KEY
+// (the dev server proxies /splitwise-api and adds the key; see vite.config.ts).
+
+export const splitwiseApiEnabled = typeof __SPLITWISE_PROXY__ !== 'undefined' && __SPLITWISE_PROXY__;
+
+export type SplitwiseMember = { id: number; name: string };
+export type SplitwiseGroup = { id: number; name: string; members: SplitwiseMember[] };
+
+type ApiUser = { id: number; first_name?: string | null; last_name?: string | null };
+
+const memberName = (u: ApiUser) => [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || `User ${u.id}`;
+
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`/splitwise-api/${path}`, init);
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body) {
+    const reason = res.status === 401 ? 'API key was rejected' : `HTTP ${res.status}`;
+    throw new Error(`Splitwise: ${reason}`);
+  }
+  return body as T;
+}
+
+/** The key owner's groups (without the built-in "Non-group expenses"). */
+export async function fetchSplitwiseGroups(): Promise<SplitwiseGroup[]> {
+  const data = await api<{ groups: { id: number; name: string; members: ApiUser[] }[] }>('get_groups');
+  return data.groups
+    .filter((g) => g.id !== 0)
+    .map((g) => ({ id: g.id, name: g.name, members: g.members.map((m) => ({ id: m.id, name: memberName(m) })) }));
+}
+
+const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+
+/** Best guess: full name, then first name — only when exactly one member matches. */
+export function guessMember(playerName: string, members: SplitwiseMember[]): number | undefined {
+  const p = norm(playerName);
+  const full = members.filter((m) => norm(m.name) === p);
+  if (full.length === 1) return full[0].id;
+  const first = members.filter((m) => norm(m.name).split(' ')[0] === p.split(' ')[0]);
+  return first.length === 1 ? first[0].id : undefined;
+}
+
+/**
+ * One expense for the whole game: paid share = earned, owed share = spent.
+ * Players mapped to the same Splitwise person are merged.
+ */
+export async function createSplitwiseExpense(opts: {
+  groupId: number;
+  title: string;
+  rows: SplitwiseRow[];
+  memberFor: Record<string, number>;
+}): Promise<number> {
+  const shares = new Map<number, { paid: number; owed: number }>();
+  for (const r of opts.rows) {
+    const id = opts.memberFor[r.id];
+    if (!id) throw new Error(`Pick a Splitwise person for ${r.name}`);
+    const s = shares.get(id) ?? { paid: 0, owed: 0 };
+    s.paid += cents(r.earned);
+    s.owed += cents(r.spent);
+    shares.set(id, s);
+  }
+  const totalC = opts.rows.reduce((s, r) => s + cents(r.spent), 0);
+  const body: Record<string, string | number> = {
+    cost: (totalC / 100).toFixed(2),
+    description: `Poker: ${opts.title}`,
+    details: splitwiseText(opts.title, new Date(), opts.rows),
+    currency_code: 'EUR',
+    group_id: opts.groupId,
+    date: new Date().toISOString(),
+  };
+  [...shares.entries()].forEach(([userId, s], i) => {
+    body[`users__${i}__user_id`] = userId;
+    body[`users__${i}__paid_share`] = (s.paid / 100).toFixed(2);
+    body[`users__${i}__owed_share`] = (s.owed / 100).toFixed(2);
+  });
+  const data = await api<{ expenses?: { id: number }[]; errors?: Record<string, string[] | string> }>('create_expense', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const errors = Object.values(data.errors ?? {}).flat();
+  if (errors.length || !data.expenses?.[0]) throw new Error(`Splitwise: ${errors.join(', ') || 'expense was not created'}`);
+  return data.expenses[0].id;
+}

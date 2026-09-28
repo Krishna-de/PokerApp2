@@ -2031,7 +2031,18 @@ async function closeBuyins() {
               </div>
             </section>
 
-            <SplitwiseCard title={room?.title ?? ''} rows={splitRows} onMessage={setAdminMessage} />
+            <SplitwiseCard
+              title={room?.title ?? ''}
+              rows={splitRows}
+              onMessage={setAdminMessage}
+              canAdd={isAdminUnlocked}
+              added={room?.splitwise}
+              onAdded={({ expenseId, groupName }) =>
+                patchRoom({
+                  splitwise: { expenseId, groupName, addedBy: identity?.displayName ?? 'admin', addedAt: Date.now() },
+                })
+              }
+            />
 
             <button className="btn btn-green btn-block btn-lg" onClick={createFreshRoomFromCurrent}>
               Rematch with same players
